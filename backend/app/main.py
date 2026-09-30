@@ -14,12 +14,6 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager to handle startup and shutdown events."""
     # Ensure database tables exist on startup
     init_db()
-    # Pre-package model ZIP files at startup so requests don't hit zipfile I/O during analysis
-    try:
-        from app.services.model_loader import prepackage_all_models
-        prepackage_all_models()
-    except Exception:
-        pass
     yield
 
 

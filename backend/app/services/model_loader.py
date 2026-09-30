@@ -153,7 +153,10 @@ def load_model(name_or_key: str, force_reload: bool = False) -> YOLO:
         gc.collect()
 
     try:
-        packaged_pt_path = _ensure_packaged_pt(definition, source_path)
+        if source_path.is_file() and source_path.suffix == ".pt":
+            packaged_pt_path = source_path
+        else:
+            packaged_pt_path = _ensure_packaged_pt(definition, source_path)
         # Load through Ultralytics YOLO with explicit task
         model_instance = YOLO(str(packaged_pt_path), task=definition.task)
 

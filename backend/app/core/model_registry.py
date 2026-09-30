@@ -176,10 +176,18 @@ def list_registered_models() -> List[ModelDefinition]:
 
 
 def resolve_model_path(definition: ModelDefinition) -> Path:
-    """Resolve the absolute filesystem path for a model's source directory."""
+    """Resolve the absolute filesystem path for a model's source directory or packaged .pt archive."""
+    # 0. Check for pre-packaged .pt archive first
+    direct_pt = MODELS_DIR / f"{definition.key}.pt"
+    if direct_pt.exists():
+        return direct_pt
+
     # 1. Check custom environment override if set
     env_dir = os.getenv("MODELS_DIR")
     if env_dir:
+        env_pt = Path(env_dir).resolve() / f"{definition.key}.pt"
+        if env_pt.exists():
+            return env_pt
         env_cand = Path(env_dir).resolve() / definition.relative_path
         if env_cand.exists():
             return env_cand
