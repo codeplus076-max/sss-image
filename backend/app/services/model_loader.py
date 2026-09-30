@@ -6,21 +6,29 @@ original model files, caching instantiated models in memory to prevent
 redundant initialization overhead.
 """
 
+import gc
 import os
 import shutil
 import tempfile
 import zipfile
 from pathlib import Path
 from typing import Dict, Optional
+import torch
 from ultralytics import YOLO
 
 from app.core.model_registry import (
+    MODEL_REGISTRY,
     ModelDefinition,
     ModelNotFoundError,
     get_model_definition,
     resolve_model_path,
 )
 
+# Limit PyTorch CPU threads to avoid excessive memory and thread pool overhead
+try:
+    torch.set_num_threads(2)
+except Exception:
+    pass
 
 class ModelLoadError(RuntimeError):
     """Raised when an existing model fails to load into memory."""
@@ -29,6 +37,7 @@ class ModelLoadError(RuntimeError):
 
 # Global in-memory cache holding initialized model instances
 _LOADED_MODELS: Dict[str, YOLO] = {}
+MAX_CACHED_MODELS = int(os.getenv("MAX_CACHED_MODELS", "1"))
 
 
 def _get_cache_dir() -> Path:
@@ -96,6 +105,21 @@ def _ensure_packaged_pt(definition: ModelDefinition, source_path: Path) -> Path:
     return target_pt
 
 
+def prepackage_all_models() -> None:
+    """Pre-package all registered models into .pt containers ahead of time.
+
+    Called during application startup to avoid on-the-fly zip packaging latency
+    during live HTTP requests.
+    """
+    for definition in MODEL_REGISTRY.values():
+        try:
+            source_path = resolve_model_path(definition)
+            if source_path.exists():
+                _ensure_packaged_pt(definition, source_path)
+        except Exception:
+            pass
+
+
 def load_model(name_or_key: str, force_reload: bool = False) -> YOLO:
     """Load a model by name or key, returning a cached instance if available.
 
@@ -120,6 +144,13 @@ def load_model(name_or_key: str, force_reload: bool = False) -> YOLO:
         raise ModelLoadError(
             f"Model '{definition.name}' directory not found at resolved path: {source_path}"
         )
+
+    # Evict older cached models if at capacity to keep memory well under 512MB
+    if len(_LOADED_MODELS) >= MAX_CACHED_MODELS:
+        keys_to_evict = [k for k in list(_LOADED_MODELS.keys()) if k != definition.key]
+        for k in keys_to_evict:
+            del _LOADED_MODELS[k]
+        gc.collect()
 
     try:
         packaged_pt_path = _ensure_packaged_pt(definition, source_path)
@@ -154,3 +185,5 @@ def is_model_loaded(name_or_key: str) -> bool:
 def clear_model_cache() -> None:
     """Clear in-memory cache and unload models."""
     _LOADED_MODELS.clear()
+    gc.collect()
+

@@ -266,7 +266,11 @@ export default function SonarIngestView({
             <div className="flex items-center space-x-2.5">
               <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
               <div>
-                <span className="font-bold text-red-300 uppercase tracking-wide">Invalid Sonar Image: </span>
+                <span className="font-bold text-red-300 uppercase tracking-wide">
+                  {analysisError?.toLowerCase().includes('connect') || analysisError?.toLowerCase().includes('network') || analysisError?.toLowerCase().includes('server')
+                    ? 'Connection Error: '
+                    : 'Invalid Sonar Image: '}
+                </span>
                 <span>{analysisError}</span>
               </div>
             </div>

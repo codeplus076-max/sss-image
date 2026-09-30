@@ -166,11 +166,16 @@ export async function analyzeSonarImage(imageFile, options = {}) {
       `Network connection failed: ${err.message}`,
       0,
       null,
-      `Unable to connect to the SonarOps backend at ${API_BASE_URL}. Please verify the server is running.`
+      `Unable to reach the backend at ${API_BASE_URL}. If the service was sleeping on Render's free tier, it takes ~30-50s to spin up. Please wait a moment and try again.`
     );
   }
 
   // Handle HTTP status codes according to verified backend contract
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    const userMessage = "The backend is currently waking up or temporarily unavailable on Render. Please wait ~30 seconds and retry.";
+    throw new ApiError(userMessage, response.status, null, userMessage);
+  }
+
   if (response.status === 422) {
     const errorData = await response.json().catch(() => ({}));
     throw new SonarValidationError(errorData);

@@ -4,6 +4,7 @@ Coordinates image preprocessing, multi-model execution, detection aggregation,
 class normalization, and statistical summary generation.
 """
 
+import gc
 import time
 import uuid
 from typing import List, Optional
@@ -113,6 +114,7 @@ class AnalysisService:
                 iou=iou,
             )
             raw_detections.extend(inf_resp.detections)
+            gc.collect()
 
         # Conservative cross-model deduplication for overlapping models
         active_detections = deduplicate_cross_model_detections(raw_detections, iou_threshold=0.50)
