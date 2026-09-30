@@ -268,7 +268,7 @@ def analyze_sonar_survey(
         logger.error(f"Unexpected pipeline error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An internal error occurred during sonar survey analysis.",
+            detail=f"Pipeline error: {e}",
         )
 
     # 6. Persistent Storage of Evidence and Analysis Session

@@ -251,25 +251,33 @@ def extract_acoustic_anomalies(
         if confidence is not None and conf < confidence:
             conf = round(confidence, 2)
 
+        norm_x1 = max(0.0, min(1.0, float(x) / max(1, w)))
+        norm_y1 = max(0.0, min(1.0, float(y) / max(1, h)))
+        norm_w = max(0.0, min(1.0, float(bw) / max(1, w)))
+        norm_h = max(0.0, min(1.0, float(bh) / max(1, h)))
+
+        bbox = BoundingBox(
+            x1=round(float(x), 2),
+            y1=round(float(y), 2),
+            x2=round(float(x + bw), 2),
+            y2=round(float(y + bh), 2),
+            width=round(float(bw), 2),
+            height=round(float(bh), 2),
+            norm_x1=round(norm_x1, 4),
+            norm_y1=round(norm_y1, 4),
+            norm_w=round(norm_w, 4),
+            norm_h=round(norm_h, 4),
+        )
+
         det = DetectionResult(
+            model_name=active_model.name,
             class_id=class_id,
             raw_class_name=raw_class,
             semantic_class_name=semantic_label,
             confidence=conf,
-            bounding_box=BoundingBox(
-                x1=float(x),
-                y1=float(y),
-                x2=float(x + bw),
-                y2=float(y + bh),
-                width=float(bw),
-                height=float(bh),
-                x=round((x / w) * 100.0, 2),
-                y=round((y / h) * 100.0, 2),
-                w=round((bw / w) * 100.0, 2),
-                h=round((bh / h) * 100.0, 2),
-            ),
-            model_key=active_model.key,
-            model_name=active_model.name,
+            bounding_box=bbox,
+            image_width=w,
+            image_height=h,
         )
         detections.append(det)
         model_idx += 1
