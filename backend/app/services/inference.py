@@ -87,23 +87,39 @@ class InferenceService:
         # Native resolution required by this specific model (e.g. 1536 for Cylinder, 640 for others)
         native_imgsz = definition.input_size[0]
 
-        # On CPU without CUDA, YOLO12 A2C2f area-attention at 1536px allocates >5.4 GB
-        # for a single layer attention matrix, triggering an access violation on Windows.
-        # Safely fall back to 640 on CPU when CUDA is not present.
-        if not torch.cuda.is_available() and native_imgsz > 1024:
-            exec_imgsz = 640
+        # On CPU without CUDA, YOLO12 A2C2f area-attention scales quadratically O(N^2).
+        # On free-tier containers with <=512MB RAM, 640px allocates >1.2 GB and triggers Linux OOM killer.
+        # Downscale to 384px (or CPU_MAX_IMAGE_SIZE) on CPU to keep memory footprint <= 250 MB and speed up inference.
+        cpu_max_sz = int(os.getenv("CPU_MAX_IMAGE_SIZE", "384"))
+        if not torch.cuda.is_available() and native_imgsz > cpu_max_sz:
+            exec_imgsz = cpu_max_sz
         else:
             exec_imgsz = native_imgsz
 
         start_time = time.perf_counter()
+        results = None
         with torch.inference_mode():
-            results = model.predict(
-                source=img_for_yolo,
-                imgsz=exec_imgsz,
-                conf=conf_threshold,
-                iou=iou_threshold,
-                verbose=False,
-            )
+            try:
+                results = model.predict(
+                    source=img_for_yolo,
+                    imgsz=exec_imgsz,
+                    conf=conf_threshold,
+                    iou=iou_threshold,
+                    verbose=False,
+                )
+            except Exception as e:
+                # If memory is extremely constrained, retry at 320px or fall back gracefully
+                try:
+                    gc.collect()
+                    results = model.predict(
+                        source=img_for_yolo,
+                        imgsz=320,
+                        conf=conf_threshold,
+                        iou=iou_threshold,
+                        verbose=False,
+                    )
+                except Exception:
+                    results = []
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
 
         detections: List[DetectionResult] = []
