@@ -1,6 +1,10 @@
 """Main entry point for the FastAPI application."""
 
+import os
 from contextlib import asynccontextmanager
+
+os.environ.setdefault("YOLO_CONFIG_DIR", "/tmp/Ultralytics")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
