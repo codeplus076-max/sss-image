@@ -5,6 +5,7 @@ native input resolutions, verified raw class mappings, and user-facing
 semantic display labels.
 """
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -176,4 +177,28 @@ def list_registered_models() -> List[ModelDefinition]:
 
 def resolve_model_path(definition: ModelDefinition) -> Path:
     """Resolve the absolute filesystem path for a model's source directory."""
-    return MODELS_DIR / definition.relative_path
+    # 1. Check custom environment override if set
+    env_dir = os.getenv("MODELS_DIR")
+    if env_dir:
+        env_cand = Path(env_dir).resolve() / definition.relative_path
+        if env_cand.exists():
+            return env_cand
+
+    # 2. Check primary path relative to backend codebase location
+    primary = MODELS_DIR / definition.relative_path
+    if primary.exists():
+        return primary
+
+    # 3. Check candidate paths relative to current working directory
+    cwd = Path.cwd().resolve()
+    candidates = [
+        cwd / "backend" / "models" / definition.relative_path,
+        cwd / "models" / definition.relative_path,
+        cwd.parent / "backend" / "models" / definition.relative_path,
+        cwd.parent / "models" / definition.relative_path,
+    ]
+    for cand in candidates:
+        if cand.exists():
+            return cand
+
+    return primary

@@ -176,3 +176,32 @@ By default, the backend allows origins matching the React/Vite frontend developm
 - **Strict Geolocation Integrity**: Zero coordinate fabrication. Image-only uploads strictly retain `latitude: null`, `longitude: null`, and `geolocation_available: false`.
 - **Architectural Separation**: Detections retain pure 2D bounding boxes in image pixel and normalized space, while survey navigation data is encapsulated separately in `metadata` and backward-compatible `geolocation`.
 
+---
+
+## Cloud Deployment (e.g. Render)
+
+The backend is fully self-contained and pre-configured for containerized and cloud PaaS deployment (such as Render, Railway, or Fly.io).
+
+### Render Web Service Configuration:
+- **Environment**: `Python 3`
+- **Root Directory**: `backend`
+- **Build Command**:
+  ```bash
+  pip install -r requirements.txt
+  ```
+- **Start Command**:
+  ```bash
+  uvicorn app.main:app --host 0.0.0.0 --port $PORT
+  ```
+
+### Required Environment Variables:
+| Variable | Description | Example Value |
+|---|---|---|
+| `PORT` | Dynamically injected by Render | *(Injected automatically)* |
+| `CORS_ORIGINS` | Comma-separated allowed frontend domains | `https://your-frontend.onrender.com` |
+| `APP_ENV` | Application environment mode | `production` |
+| `PYTHON_VERSION` | Python runtime version | `3.11` or `3.12` |
+
+> **Note on Model Resolution**: All 5 trained models are packaged in `backend/models/`. The application automatically resolves model paths relative to the project directory or through `MODELS_DIR` regardless of working directory or operating system. Local development origins (`localhost:5173`, etc.) are automatically preserved alongside production origins.
+
+

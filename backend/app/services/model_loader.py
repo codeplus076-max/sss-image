@@ -8,6 +8,7 @@ redundant initialization overhead.
 
 import os
 import shutil
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Dict, Optional
@@ -29,8 +30,23 @@ class ModelLoadError(RuntimeError):
 # Global in-memory cache holding initialized model instances
 _LOADED_MODELS: Dict[str, YOLO] = {}
 
-# Directory for runtime container archives (leaves backend/models/ pristine)
-CACHE_DIR = Path(__file__).resolve().parent.parent.parent / ".cache" / "packaged_models"
+
+def _get_cache_dir() -> Path:
+    """Resolve and create a writable cache directory for packaged models."""
+    env_cache = os.getenv("MODEL_CACHE_DIR")
+    if env_cache:
+        target = Path(env_cache).resolve()
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+
+    default_cache = Path(__file__).resolve().parent.parent.parent / ".cache" / "packaged_models"
+    try:
+        default_cache.mkdir(parents=True, exist_ok=True)
+        return default_cache
+    except (OSError, PermissionError):
+        tmp_cache = Path(tempfile.gettempdir()) / "sonarops_packaged_models"
+        tmp_cache.mkdir(parents=True, exist_ok=True)
+        return tmp_cache
 
 
 def _ensure_packaged_pt(definition: ModelDefinition, source_path: Path) -> Path:
@@ -40,8 +56,8 @@ def _ensure_packaged_pt(definition: ModelDefinition, source_path: Path) -> Path:
     archive directory prefix. This function packages the unpacked directory into a
     local runtime cache without altering the source directory.
     """
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    target_pt = CACHE_DIR / f"{definition.key}.pt"
+    cache_dir = _get_cache_dir()
+    target_pt = cache_dir / f"{definition.key}.pt"
 
     # Check if target already exists and is newer than source data.pkl
     source_pkl = source_path / "data.pkl"
@@ -55,7 +71,7 @@ def _ensure_packaged_pt(definition: ModelDefinition, source_path: Path) -> Path:
         return target_pt
 
     # Create PyTorch zip container
-    temp_pt = CACHE_DIR / f"{definition.key}.tmp.pt"
+    temp_pt = cache_dir / f"{definition.key}.tmp.pt"
     try:
         with zipfile.ZipFile(temp_pt, "w", compression=zipfile.ZIP_STORED) as zf:
             for root, _, files in os.walk(source_path):
