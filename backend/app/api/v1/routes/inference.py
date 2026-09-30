@@ -46,7 +46,7 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
     summary="Execute Model Inference on a Sonar Image",
     description="Uploads a sonar image, validates input, executes specified model, and returns normalized detection results.",
 )
-async def predict_image(
+def predict_image(
     image: UploadFile = File(..., description="Uploaded sonar image file (JPEG, PNG, TIFF, BMP, WebP)"),
     model: str = Form(..., description="Model identifier (e.g. cylinder, ghostvision, mine, shipwreck, subpipe)"),
     confidence: Optional[float] = Form(
@@ -103,7 +103,7 @@ async def predict_image(
 
     # 4. Read & Decode Image Data
     try:
-        image_bytes = await image.read()
+        image_bytes = image.file.read()
     except Exception as e:
         logger.error(f"Failed to read uploaded file: {e}")
         raise HTTPException(

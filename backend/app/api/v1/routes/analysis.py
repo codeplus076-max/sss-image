@@ -104,7 +104,7 @@ def _parse_selected_models(raw_input: Optional[str]) -> Optional[List[str]]:
         }
     },
 )
-async def analyze_sonar_survey(
+def analyze_sonar_survey(
     image: UploadFile = File(..., description="Uploaded sonar image file (JPEG, PNG, TIFF, BMP, WebP)"),
     selected_models: Optional[str] = Form(
         None,
@@ -182,7 +182,7 @@ async def analyze_sonar_survey(
 
     # 2. Read Image Data
     try:
-        file_bytes = await image.read()
+        file_bytes = image.file.read()
     except Exception as e:
         logger.error(f"Failed to read uploaded file: {e}")
         raise HTTPException(
