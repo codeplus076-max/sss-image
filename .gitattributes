@@ -1,0 +1,8 @@
+# Prevent Git from corrupting binary model weights and checkpoint files
+* text=auto
+*.pt binary
+*.pkl binary
+*.bin binary
+*.pth binary
+*.onnx binary
+backend/models/** binary

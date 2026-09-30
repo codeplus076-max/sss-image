@@ -6,6 +6,7 @@ semantic class labels, bounding boxes, and metadata.
 """
 
 import gc
+import os
 import time
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union

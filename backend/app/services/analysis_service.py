@@ -105,6 +105,7 @@ class AnalysisService:
 
         # 3. Multi-Model Inference Execution
         raw_detections = []
+        models_failed = 0
         for model_def in target_models:
             try:
                 inf_resp = inference_service.predict(
@@ -115,16 +116,15 @@ class AnalysisService:
                 )
                 raw_detections.extend(inf_resp.detections)
             except Exception as e:
-                # Log warning and gracefully continue if a single model encounters a runtime/memory issue
-                pass
+                models_failed += 1
+                logger.warning(f"Inference error on model '{model_def.key}': {e}", exc_info=True)
             gc.collect()
 
-        # If zero detections were found or models were constrained by free-tier RAM limits,
-        # extract candidate acoustic highlights and shadow targets directly from the sonar imagery.
-        if not raw_detections:
+        # If and only if all models crashed/failed due to server memory or environmental constraints,
+        # provide fallback acoustic contrast candidates labeled accurately as acoustic anomalies.
+        if not raw_detections and models_failed == len(target_models) and len(target_models) > 0:
             raw_detections = extract_acoustic_anomalies(
                 preprocessed.np_array,
-                target_models=target_models,
                 confidence=confidence,
             )
 
@@ -201,13 +201,12 @@ analysis_service = AnalysisService()
 
 def extract_acoustic_anomalies(
     img_rgb,
-    target_models: List[ModelDefinition],
     confidence: Optional[float] = None,
 ) -> List[Any]:
-    """Extract acoustic highlight and shadow targets directly using computer-vision heuristics.
+    """Extract acoustic highlight and shadow targets directly using computer-vision contrast heuristics.
 
-    Acts as a resilient, ultra-fast fallback on CPU / low-RAM cloud containers (512MB RAM)
-    where full multi-model PyTorch attention computation is constrained.
+    Acts as a resilient fallback on CPU containers only if PyTorch model execution fails.
+    Accurately classifies contacts as acoustic contrast anomalies without spoofing model predictions.
     """
     import cv2
     import numpy as np
@@ -235,21 +234,14 @@ def extract_acoustic_anomalies(
     selected_contours = valid_contours[:4]
 
     if not selected_contours:
-        # Default center-region candidate if image has low dynamic range
-        selected_contours = [(1000.0, np.array([[[int(w*0.3), int(h*0.3)]], [[int(w*0.5), int(h*0.3)]], [[int(w*0.5), int(h*0.5)]], [[int(w*0.3), int(h*0.5)]]]))]
+        return []
 
-    model_idx = 0
     for area, c in selected_contours:
         x, y, bw, bh = cv2.boundingRect(c)
-        active_model = target_models[model_idx % len(target_models)]
-        raw_class = list(active_model.raw_classes.values())[0] if active_model.raw_classes else "Anomaly"
-        semantic_label = list(active_model.semantic_labels.values())[0] if active_model.semantic_labels else raw_class
-        class_id = list(active_model.raw_classes.keys())[0] if active_model.raw_classes else 0
-
         peak_val = float(np.max(gray[y:y+bh, x:x+bw])) if bw > 0 and bh > 0 else 180.0
-        conf = round(min(0.96, max(0.65, (peak_val / 255.0) * 0.9 + 0.05)), 2)
+        conf = round(min(0.85, max(0.40, (peak_val / 255.0) * 0.7 + 0.1)), 2)
         if confidence is not None and conf < confidence:
-            conf = round(confidence, 2)
+            continue
 
         norm_x1 = max(0.0, min(1.0, float(x) / max(1, w)))
         norm_y1 = max(0.0, min(1.0, float(y) / max(1, h)))
@@ -270,17 +262,16 @@ def extract_acoustic_anomalies(
         )
 
         det = DetectionResult(
-            model_name=active_model.name,
-            class_id=class_id,
-            raw_class_name=raw_class,
-            semantic_class_name=semantic_label,
+            model_name="Acoustic Contrast Filter",
+            class_id=0,
+            raw_class_name="Acoustic Anomaly",
+            semantic_class_name="Acoustic Contrast Anomaly (Highlight/Shadow)",
             confidence=conf,
             bounding_box=bbox,
             image_width=w,
             image_height=h,
         )
         detections.append(det)
-        model_idx += 1
 
     return detections
 
