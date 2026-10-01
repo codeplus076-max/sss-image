@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     MODEL_CACHE_DIR: Optional[str] = None
     ADMIN_API_KEY: Optional[str] = None
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v: str) -> str:
+        if isinstance(v, str):
+            clean = v.strip()
+            if clean.startswith("postgres://"):
+                return clean.replace("postgres://", "postgresql://", 1)
+            return clean
+        return v
+
     @field_validator("PORT", mode="before")
     @classmethod
     def parse_port(cls, v: Union[str, int]) -> int:

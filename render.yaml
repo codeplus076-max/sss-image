@@ -24,3 +24,12 @@ services:
         value: "1"
       - key: MKL_NUM_THREADS
         value: "1"
+      # Optional Managed Persistence (Populate in Render Dashboard to persist analyses across dyno reboots):
+      # - key: DATABASE_URL
+      #   sync: false
+      # - key: STORAGE_PROVIDER
+      #   value: local # change to 'supabase' when keys are added
+      # - key: SUPABASE_URL
+      #   sync: false
+      # - key: SUPABASE_SERVICE_ROLE_KEY
+      #   sync: false
