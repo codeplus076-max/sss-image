@@ -47,6 +47,8 @@ logs/
 
 # Temporary test/scratch scratchpads
 scratch/
+*_crop.png
+backend/*_crop.png
 
 # Frontend dependencies & build outputs
 node_modules/

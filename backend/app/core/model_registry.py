@@ -123,7 +123,7 @@ MODEL_REGISTRY: Dict[str, ModelDefinition] = {
         task="detect",
         raw_classes={0: "Pipeline"},
         semantic_labels={0: "Subsea Pipeline / Conduit"},
-        default_conf=0.25,
+        default_conf=0.15,
         default_iou=0.70,
         notes="Industrial subsea infrastructure and pipeline detector.",
     ),

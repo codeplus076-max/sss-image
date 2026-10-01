@@ -10,7 +10,8 @@ import {
   Info,
   ShieldCheck,
   Crosshair,
-  RefreshCw
+  RefreshCw,
+  Sliders
 } from 'lucide-react';
 import { soundFx } from '../../utils/audio';
 import { MASTER_DETECTIONS } from '../../data/sharedDetections';
@@ -33,6 +34,21 @@ export default function DetectionsView({
   const [selectedId, setSelectedId] = useState(selectedAnomalyId || (anomalies && anomalies.length > 0 ? anomalies[0].id : null));
   const [hoveredId, setHoveredId] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
+  const [confidenceCutoff, setConfidenceCutoff] = useState(20);
+  const [targetModel, setTargetModel] = useState('all');
+
+  const handleTriggerReanalysis = (overrideConf) => {
+    if (!onRunAnalysis || !surveyFile || isAnalyzing) return;
+    const finalCutoff = overrideConf != null ? overrideConf : confidenceCutoff;
+    if (overrideConf != null) {
+      setConfidenceCutoff(overrideConf);
+    }
+    soundFx.playSonarPing(1350, 0.4);
+    onRunAnalysis(surveyFile, {
+      confidence: finalCutoff / 100,
+      selected_models: targetModel === 'all' ? undefined : [targetModel]
+    });
+  };
 
   // Sync detections whenever anomalies prop changes
   useEffect(() => {
@@ -248,20 +264,72 @@ export default function DetectionsView({
               </div>
 
               <div className="flex items-center space-x-2">
-                {onRunAnalysis && surveyFile && !isAnalyzing && (
-                  <button
-                    onClick={() => onRunAnalysis(surveyFile)}
-                    className="text-[10px] text-primary hover:text-white flex items-center space-x-1 cursor-pointer"
-                    title="Re-run AI detection pipeline"
-                  >
-                    <RefreshCw className="w-2.5 h-2.5" />
-                    <span>ANALYZE</span>
-                  </button>
-                )}
                 <span className="text-primary text-[10px]">
                   {detections.length} CANDIDATES
                 </span>
               </div>
+            </div>
+
+            {/* Operator Sensitivity & Detector Control Toolbar */}
+            <div className="px-3 py-2 bg-[#080d16] border-x border-b border-[#162234] font-mono text-xs flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center space-x-2.5">
+                <div className="flex items-center space-x-1.5 text-[#8ea4bf] text-[10px]">
+                  <Sliders className="w-3 h-3 text-primary" />
+                  <span className="text-[#50637c]">CONFIDENCE CUTOFF:</span>
+                  <span className="text-primary font-bold">{confidenceCutoff}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="90"
+                  step="5"
+                  value={confidenceCutoff}
+                  onChange={(e) => setConfidenceCutoff(Number(e.target.value))}
+                  className="w-24 sm:w-32 h-1 bg-[#162234] rounded appearance-none cursor-pointer accent-teal-400"
+                  title={`Detection threshold cutoff: ${confidenceCutoff}%`}
+                />
+              </div>
+
+              {/* Target Model Filter Pills */}
+              <div className="flex items-center space-x-1 text-[10px]">
+                <span className="text-[#50637c] mr-0.5 hidden xl:inline">DETECTOR:</span>
+                {[
+                  { id: 'all', label: 'ALL' },
+                  { id: 'subpipes', label: 'PIPELINE' },
+                  { id: 'mines', label: 'MINES' },
+                  { id: 'shipwreck', label: 'SHIPWRECK' },
+                  { id: 'cylinder', label: 'CYLINDER' },
+                  { id: 'ghostvision', label: 'GEAR' }
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      soundFx.playSonarPing(1200, 0.2);
+                      setTargetModel(m.id);
+                    }}
+                    className={`px-1.5 py-0.5 rounded-xs transition-colors cursor-pointer border text-[9px] ${
+                      targetModel === m.id
+                        ? 'bg-primary/20 text-primary border-primary/50 font-bold'
+                        : 'bg-[#0b111e] text-[#8ea4bf] border-[#162234] hover:text-white'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Re-Scan Action Button */}
+              {onRunAnalysis && surveyFile && (
+                <button
+                  onClick={() => handleTriggerReanalysis()}
+                  disabled={isAnalyzing}
+                  className="px-2.5 py-1 bg-primary/20 hover:bg-primary/30 border border-primary/40 text-primary text-[10px] font-bold rounded-xs flex items-center space-x-1 cursor-pointer transition-colors shrink-0 disabled:opacity-50"
+                  title="Execute detection inference with selected threshold"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isAnalyzing ? 'animate-spin' : ''}`} />
+                  <span>{isAnalyzing ? 'SCANNING...' : 'RE-SCAN'}</span>
+                </button>
+              )}
             </div>
 
             {/* Sonar Viewport with Clean Scientific Bounding Boxes */}
@@ -402,8 +470,18 @@ export default function DetectionsView({
                     <CheckCircle2 className="w-5 h-5 text-primary mx-auto opacity-75" />
                     <p className="text-on-surface font-semibold uppercase">No Objects Detected</p>
                     <p className="font-sans text-[11px] text-[#8ea4bf] leading-relaxed">
-                      No objects detected in this sonar image.
+                      No objects met the {confidenceCutoff}% confidence cutoff in this swath.
                     </p>
+                    {onRunAnalysis && surveyFile && (
+                      <button
+                        onClick={() => handleTriggerReanalysis(15)}
+                        disabled={isAnalyzing}
+                        className="mt-2 px-3 py-1.5 bg-[#101b2c] hover:bg-primary/20 border border-[#22354e] hover:border-primary text-primary text-[10px] rounded-xs font-semibold cursor-pointer transition-colors inline-flex items-center space-x-1.5"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Lower Cutoff to 15% & Re-Scan</span>
+                      </button>
+                    )}
                   </div>
                 ) : (
                   detections.map((det) => {

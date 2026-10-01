@@ -26,7 +26,8 @@ from app.core.model_registry import (
 
 # Limit PyTorch CPU threads to avoid excessive memory and thread pool overhead
 try:
-    torch.set_num_threads(2)
+    num_threads = int(os.getenv("TORCH_NUM_THREADS", "1"))
+    torch.set_num_threads(num_threads)
 except Exception:
     pass
 
@@ -183,6 +184,19 @@ def is_model_loaded(name_or_key: str) -> bool:
         return definition.key in _LOADED_MODELS
     except ModelNotFoundError:
         return False
+
+
+def unload_model(name_or_key: str) -> None:
+    """Explicitly unload a specific model from memory cache to reclaim RAM immediately."""
+    try:
+        definition = get_model_definition(name_or_key)
+        key = definition.key
+    except ModelNotFoundError:
+        key = name_or_key
+
+    if key in _LOADED_MODELS:
+        del _LOADED_MODELS[key]
+        gc.collect()
 
 
 def clear_model_cache() -> None:

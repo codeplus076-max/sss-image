@@ -43,9 +43,10 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
     SUPABASE_STORAGE_BUCKET: str = "sonar-evidence"
 
-    # Optional custom paths
+    # Optional custom paths and admin key
     MODELS_DIR: Optional[str] = None
     MODEL_CACHE_DIR: Optional[str] = None
+    ADMIN_API_KEY: Optional[str] = None
 
     @field_validator("PORT", mode="before")
     @classmethod

@@ -28,6 +28,7 @@ from app.services.detection_normalizer import (
     deduplicate_cross_model_detections,
 )
 from app.services.inference import inference_service
+from app.services.model_loader import unload_model
 from app.services.preprocessing_service import PreprocessedImage, preprocess_image_bytes
 
 # Default ordered sequence of all verified models when 'all' is requested
@@ -118,6 +119,9 @@ class AnalysisService:
             except Exception as e:
                 models_failed += 1
                 logger.warning(f"Inference error on model '{model_def.key}': {e}", exc_info=True)
+            finally:
+                if len(target_models) > 1:
+                    unload_model(model_def.key)
             gc.collect()
 
         # If and only if all models crashed/failed due to server memory or environmental constraints,

@@ -19,7 +19,7 @@ def inspect_model(name_or_key: str) -> ModelHealthInfo:
     """Perform a diagnostic health check on a specific model."""
     definition: ModelDefinition = get_model_definition(name_or_key)
     path = resolve_model_path(definition)
-    exists = path.exists() and (path / "data.pkl").exists()
+    exists = path.exists() and (path.is_file() or (path / "data.pkl").exists())
 
     is_loadable = False
     error_msg = None

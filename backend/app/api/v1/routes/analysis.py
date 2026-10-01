@@ -4,10 +4,11 @@ from datetime import datetime
 import json
 import logging
 from typing import Any, List, Optional, Union
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.model_registry import ModelNotFoundError
 from app.db.session import get_db
 from app.schemas.analysis import (
@@ -343,9 +344,15 @@ async def list_analyses(
 )
 async def delete_analysis_by_id(
     analysis_id: str,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
     db: Session = Depends(get_db),
 ) -> DeleteAnalysisResponse:
     """Delete an analysis and associated evidence from DB and storage."""
+    if settings.ADMIN_API_KEY and x_admin_key != settings.ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized: Valid X-Admin-Key header is required to delete survey analyses.",
+        )
     deleted = analysis_persistence_service.delete_analysis(analysis_id, db)
     if not deleted:
         raise HTTPException(

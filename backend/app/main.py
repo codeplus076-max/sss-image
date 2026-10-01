@@ -23,12 +23,14 @@ async def lifespan(app: FastAPI):
 
 def create_application() -> FastAPI:
     """Factory function to configure and return the FastAPI application instance."""
+    enable_docs = settings.DEBUG or os.getenv("ENABLE_API_DOCS", "false").lower() in ("true", "1")
     app = FastAPI(
         title="Side-Scan Sonar Marine Intelligence Backend",
         description="REST API for Side-Scan Sonar quality assessment, preprocessing, and AI detection.",
         version="1.0.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url="/docs" if enable_docs else None,
+        redoc_url="/redoc" if enable_docs else None,
+        openapi_url="/openapi.json" if enable_docs else None,
         lifespan=lifespan,
     )
 
