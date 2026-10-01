@@ -4,6 +4,9 @@ import os
 from contextlib import asynccontextmanager
 
 os.environ.setdefault("YOLO_CONFIG_DIR", "/tmp/Ultralytics")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("TORCH_NUM_THREADS", "1")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

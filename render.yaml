@@ -16,3 +16,11 @@ services:
         value: false
       - key: MAX_CACHED_MODELS
         value: "1"
+      - key: CPU_MAX_IMAGE_SIZE
+        value: "480"
+      - key: TORCH_NUM_THREADS
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"

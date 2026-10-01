@@ -18,8 +18,9 @@ from app.schemas.inference import (
     PredictModelInfo,
     PredictResponse,
 )
+import gc
 from app.services.inference import inference_service
-from app.services.model_loader import ModelLoadError
+from app.services.model_loader import ModelLoadError, unload_model
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +151,9 @@ def predict_image(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during model inference.",
         )
+    finally:
+        unload_model(model_def.key)
+        gc.collect()
 
     # 6. Map to Public Response Structure
     detection_items = [

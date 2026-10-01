@@ -68,6 +68,19 @@ export default function SonarIngestView({
     );
   };
 
+  const handleSelectPreset = (preset) => {
+    soundFx.playSonarPing(1300, 0.2);
+    if (preset === 'all') {
+      setSelectedModels(['cylinder', 'ghostvision', 'mines', 'shipwreck', 'subpipes']);
+    } else if (preset === 'infrastructure') {
+      setSelectedModels(['subpipes', 'cylinder']);
+    } else if (preset === 'tactical') {
+      setSelectedModels(['mines', 'shipwreck']);
+    } else if (preset === 'ghostgear') {
+      setSelectedModels(['ghostvision']);
+    }
+  };
+
   // Sync recent surveys from backend
   useEffect(() => {
     if (recentSurveys && recentSurveys.length > 0) {
@@ -494,6 +507,55 @@ export default function SonarIngestView({
                       <span className="text-[9px] text-[#50637c]">
                         Natural Seabed currently unavailable
                       </span>
+                    </div>
+
+                    {/* Presets */}
+                    <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+                      <span className="text-[9px] font-mono text-[#50637c] uppercase mr-1">Presets:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPreset('all')}
+                        className={`px-2 py-0.5 rounded-xs font-mono text-[9px] border transition-colors cursor-pointer ${
+                          selectedModels.length === 5 
+                            ? 'bg-primary/15 border-primary/40 text-primary' 
+                            : 'bg-[#080d16] border-[#1a2638] text-[#7d93ad] hover:text-[#f8fafc]'
+                        }`}
+                      >
+                        All (Deep Recon)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPreset('infrastructure')}
+                        className={`px-2 py-0.5 rounded-xs font-mono text-[9px] border transition-colors cursor-pointer ${
+                          selectedModels.length === 2 && selectedModels.includes('subpipes') && selectedModels.includes('cylinder')
+                            ? 'bg-primary/15 border-primary/40 text-primary' 
+                            : 'bg-[#080d16] border-[#1a2638] text-[#7d93ad] hover:text-[#f8fafc]'
+                        }`}
+                      >
+                        Pipeline & Cylinder
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPreset('tactical')}
+                        className={`px-2 py-0.5 rounded-xs font-mono text-[9px] border transition-colors cursor-pointer ${
+                          selectedModels.length === 2 && selectedModels.includes('mines') && selectedModels.includes('shipwreck')
+                            ? 'bg-primary/15 border-primary/40 text-primary' 
+                            : 'bg-[#080d16] border-[#1a2638] text-[#7d93ad] hover:text-[#f8fafc]'
+                        }`}
+                      >
+                        Mines & Wrecks
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPreset('ghostgear')}
+                        className={`px-2 py-0.5 rounded-xs font-mono text-[9px] border transition-colors cursor-pointer ${
+                          selectedModels.length === 1 && selectedModels.includes('ghostvision')
+                            ? 'bg-primary/15 border-primary/40 text-primary' 
+                            : 'bg-[#080d16] border-[#1a2638] text-[#7d93ad] hover:text-[#f8fafc]'
+                        }`}
+                      >
+                        Ghost Gear
+                      </button>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
