@@ -132,6 +132,63 @@ export function mapBackendDetection(rawDet, index = 0, analysisId = null) {
  * POST /api/v1/analysis/analyze
  * Uploads an image for multi-model inference and persistence
  */
+/**
+ * Polls an asynchronous analysis job until completion or timeout
+ */
+export async function pollAnalysisJob(jobId, onProgress = null, maxTimeoutMs = 180000) {
+  const startTime = Date.now();
+  const pollIntervalMs = 1500;
+
+  while (Date.now() - startTime < maxTimeoutMs) {
+    let response;
+    try {
+      response = await fetch(`${API_BASE_URL}/api/v1/analysis/jobs/${jobId}`);
+    } catch (err) {
+      await new Promise((r) => setTimeout(r, pollIntervalMs));
+      continue;
+    }
+
+    if (response.status === 404) {
+      throw new ApiError(`Job '${jobId}' was not found on server.`, 404);
+    }
+
+    if (!response.ok) {
+      throw new ApiError(`Error polling job status (${response.status})`, response.status);
+    }
+
+    const jobData = await response.json();
+
+    if (onProgress && typeof onProgress === 'function') {
+      onProgress({
+        progress: jobData.progress ?? 0,
+        step: jobData.current_step || 'Processing...',
+        status: jobData.status,
+      });
+    }
+
+    if (jobData.status === 'completed') {
+      return jobData.result;
+    }
+
+    if (jobData.status === 'failed') {
+      throw new ApiError(
+        jobData.error || 'Survey analysis job failed.',
+        500,
+        jobData,
+        jobData.error || 'The analysis job encountered an error.'
+      );
+    }
+
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
+
+  throw new ApiError('Analysis job timed out on the server after 3 minutes.', 504);
+}
+
+/**
+ * POST /api/v1/analysis/jobs (with fallback to /api/v1/analysis/analyze)
+ * Uploads an image for multi-model inference and persistence without gateway timeouts
+ */
 export async function analyzeSonarImage(imageFile, options = {}) {
   if (!imageFile) {
     throw new ApiError('No file provided for analysis.', 400);
@@ -155,11 +212,46 @@ export async function analyzeSonarImage(imageFile, options = {}) {
   if (options.heading != null && options.heading !== '') formData.append('heading', String(options.heading));
   if (options.timestamp != null && options.timestamp !== '') formData.append('timestamp', String(options.timestamp));
 
+  // 1. Asynchronous Job Submission (Eliminates Render/Cloudflare 100s Timeouts)
+  try {
+    const jobSubmitResponse = await fetch(`${API_BASE_URL}/api/v1/analysis/jobs`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (jobSubmitResponse.status === 202) {
+      const submission = await jobSubmitResponse.json();
+      return await pollAnalysisJob(submission.job_id, options.onProgress);
+    }
+
+    // Pass-through validation errors from immediate pre-check
+    if (jobSubmitResponse.status === 422) {
+      const errorData = await jobSubmitResponse.json().catch(() => ({}));
+      throw new SonarValidationError(errorData);
+    }
+    if (jobSubmitResponse.status === 415) {
+      const errorData = await jobSubmitResponse.json().catch(() => ({}));
+      const userMessage = 'Unsupported image format. Please upload JPG, PNG, TIFF, BMP or WebP.';
+      throw new ApiError(userMessage, 415, errorData, userMessage);
+    }
+    if (jobSubmitResponse.status === 400) {
+      const errorData = await jobSubmitResponse.json().catch(() => ({}));
+      const userMessage = errorData.detail || 'Unable to process this request. Please check the image and metadata.';
+      throw new ApiError(userMessage, 400, errorData, userMessage);
+    }
+  } catch (err) {
+    if (err instanceof ApiError || err instanceof SonarValidationError) {
+      throw err;
+    }
+    console.info('Async jobs endpoint unavailable, falling back to synchronous /analyze:', err.message);
+  }
+
+  // 2. Synchronous Fallback (/analyze)
   let response;
   try {
     response = await fetch(`${API_BASE_URL}/api/v1/analysis/analyze`, {
       method: 'POST',
-      body: formData
+      body: formData,
     });
   } catch (err) {
     throw new ApiError(
@@ -170,9 +262,8 @@ export async function analyzeSonarImage(imageFile, options = {}) {
     );
   }
 
-  // Handle HTTP status codes according to verified backend contract
   if (response.status === 502 || response.status === 503 || response.status === 504) {
-    const userMessage = "The backend is currently waking up or temporarily unavailable on Render. Please wait ~30 seconds and retry.";
+    const userMessage = 'The backend is currently waking up or temporarily unavailable on Render. Please wait ~30 seconds and retry.';
     throw new ApiError(userMessage, response.status, null, userMessage);
   }
 
@@ -183,24 +274,23 @@ export async function analyzeSonarImage(imageFile, options = {}) {
 
   if (response.status === 415) {
     const errorData = await response.json().catch(() => ({}));
-    const userMessage = "Unsupported image format. Please upload JPG, PNG, TIFF, BMP or WebP.";
+    const userMessage = 'Unsupported image format. Please upload JPG, PNG, TIFF, BMP or WebP.';
     throw new ApiError(userMessage, 415, errorData, userMessage);
   }
 
   if (response.status === 400) {
     const errorData = await response.json().catch(() => ({}));
-    const userMessage = "Unable to process this request. Please check the image, metadata and selected models.";
+    const userMessage = errorData.detail || 'Unable to process this request. Please check the image, metadata and selected models.';
     throw new ApiError(userMessage, 400, errorData, userMessage);
   }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    const userMessage = "Something went wrong while processing the sonar image. Please try again.";
+    const userMessage = 'Something went wrong while processing the sonar image. Please try again.';
     throw new ApiError(userMessage, response.status, errorData, userMessage);
   }
 
-  const result = await response.json();
-  return result;
+  return await response.json();
 }
 
 /**

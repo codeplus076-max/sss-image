@@ -211,3 +211,28 @@ class SonarValidationErrorResponse(BaseModel):
     error: str = Field(default="INVALID_SONAR_IMAGE", description="Error category code")
     message: str = Field(..., description="High-level user-facing error message")
     details: str = Field(..., description="Actionable guidance for the operator")
+
+
+class JobSubmissionResponse(BaseModel):
+    """Response returned upon successful asynchronous job creation."""
+
+    job_id: str = Field(..., description="Unique job identifier")
+    status: str = Field(default="queued", description="Initial job status ('queued' or 'processing')")
+    progress: float = Field(default=0.05, description="Initial progress")
+    current_step: str = Field(..., description="Current status message")
+    created_at: str = Field(..., description="ISO-8601 creation timestamp")
+    poll_url: str = Field(..., description="URL to poll for job progress and results")
+
+
+class JobStatusResponse(BaseModel):
+    """Status and result response for GET /api/v1/analysis/jobs/{job_id}."""
+
+    job_id: str = Field(..., description="Unique job identifier")
+    status: str = Field(..., description="Current job status: 'queued', 'processing', 'completed', or 'failed'")
+    progress: float = Field(..., description="Completion progress [0.0 - 1.0]")
+    current_step: Optional[str] = Field(None, description="Current workflow step description")
+    created_at: str = Field(..., description="ISO-8601 creation timestamp")
+    updated_at: Optional[str] = Field(None, description="ISO-8601 last update timestamp")
+    poll_url: str = Field(..., description="URL to poll for job status")
+    error: Optional[str] = Field(None, description="Error details if status is 'failed'")
+    result: Optional[AnalysisResponse] = Field(None, description="Full analysis response if status is 'completed'")

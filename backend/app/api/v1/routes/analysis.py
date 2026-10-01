@@ -4,7 +4,8 @@ from datetime import datetime
 import json
 import logging
 from typing import Any, List, Optional, Union
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile, status
+import uuid
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,8 @@ from app.schemas.analysis import (
     AnalysisGeolocation,
     AnalysisResponse,
     DeleteAnalysisResponse,
+    JobStatusResponse,
+    JobSubmissionResponse,
     PaginatedAnalysisResponse,
     SonarValidationErrorResponse,
 )
@@ -24,6 +27,7 @@ from app.services.analysis_persistence_service import (
     analysis_persistence_service,
 )
 from app.services.analysis_service import ModelUnavailableError, analysis_service
+from app.services.job_service import job_service
 from app.services.preprocessing_service import ImageValidationError, UnsupportedFormatError
 from app.services.sonar_image_validator import NonSonarImageError, sonar_validator
 from app.services.storage_service import StorageError
@@ -288,6 +292,203 @@ def analyze_sonar_survey(
         )
 
     return response
+
+
+def _run_async_analysis_pipeline(
+    job_id: str,
+    file_bytes: bytes,
+    filename: str,
+    content_type: Optional[str],
+    model_list: Optional[List[str]],
+    geolocation: AnalysisGeolocation,
+    confidence: Optional[float],
+    iou: Optional[float],
+):
+    """Background task worker for asynchronous analysis job."""
+    from app.db.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        job_service.update_progress(job_id, 0.10, "Validating sonar image acoustics...")
+
+        # 1. Sonar-likeness validation
+        sonar_validator.validate_upload(
+            file_bytes=file_bytes,
+            filename=filename,
+            content_type=content_type,
+        )
+
+        def _on_progress(progress_val: float, step_msg: str):
+            job_service.update_progress(job_id, progress_val, step_msg)
+
+        # 2. Multi-model analysis
+        analysis_res = analysis_service.analyze_sonar_image(
+            file_bytes=file_bytes,
+            filename=filename,
+            content_type=content_type,
+            selected_models=model_list,
+            geolocation=geolocation,
+            confidence=confidence,
+            iou=iou,
+            progress_callback=_on_progress,
+        )
+
+        job_service.update_progress(job_id, 0.95, "Storing analysis session and evidence records...")
+
+        # 3. Persistent Storage
+        analysis_persistence_service.persist_analysis(
+            analysis_response=analysis_res,
+            file_bytes=file_bytes,
+            content_type=content_type,
+            db=db,
+        )
+
+        job_service.complete_job(job_id, analysis_res)
+    except NonSonarImageError as e:
+        job_service.fail_job(job_id, f"Invalid sonar image: {e}")
+    except Exception as e:
+        logger.error(f"Async job '{job_id}' error: {e}", exc_info=True)
+        job_service.fail_job(job_id, str(e))
+    finally:
+        db.close()
+
+
+@router.post(
+    "/jobs",
+    response_model=JobSubmissionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Submit Asynchronous Sonar Survey Analysis Job",
+    description="Accepts an image and parameters, queues background multi-model analysis, and immediately returns a job ID to poll, eliminating gateway timeouts.",
+)
+async def submit_analysis_job(
+    background_tasks: BackgroundTasks,
+    image: UploadFile = File(..., description="Uploaded sonar image file (JPEG, PNG, TIFF, BMP, WebP)"),
+    selected_models: Optional[str] = Form(None),
+    latitude: Optional[Union[float, str]] = Form(None),
+    longitude: Optional[Union[float, str]] = Form(None),
+    depth: Optional[Union[float, str]] = Form(None),
+    heading: Optional[Union[float, str]] = Form(None),
+    timestamp: Optional[str] = Form(None),
+    confidence: Optional[Union[float, str]] = Form(None),
+    iou: Optional[Union[float, str]] = Form(None),
+) -> JobSubmissionResponse:
+    """Submit a survey image for non-blocking asynchronous analysis."""
+    # 1. Parameter Type & Range Validations
+    conf_val = _parse_float(confidence, "Confidence threshold")
+    if conf_val is not None and not (0.0 <= conf_val <= 1.0):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confidence threshold must be between 0.0 and 1.0.",
+        )
+
+    iou_val = _parse_float(iou, "IoU threshold")
+    if iou_val is not None and not (0.0 <= iou_val <= 1.0):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="IoU threshold must be between 0.0 and 1.0.",
+        )
+
+    lat_val = _parse_float(latitude, "Latitude")
+    if lat_val is not None and not (-90.0 <= lat_val <= 90.0):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Latitude must be between -90.0 and 90.0 degrees.",
+        )
+
+    lon_val = _parse_float(longitude, "Longitude")
+    if lon_val is not None and not (-180.0 <= lon_val <= 180.0):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Longitude must be between -180.0 and 180.0 degrees.",
+        )
+
+    depth_val = _parse_float(depth, "Depth")
+    if depth_val is not None and depth_val < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Depth must be a non-negative numeric value.",
+        )
+
+    heading_val = _parse_float(heading, "Heading")
+    if heading_val is not None and not (0.0 <= heading_val < 360.0):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Heading must be in the range [0.0, 360.0) degrees.",
+        )
+
+    valid_timestamp = _validate_iso8601_timestamp(timestamp)
+    model_list = _parse_selected_models(selected_models)
+
+    # 2. Read Uploaded Image Bytes
+    try:
+        file_bytes = await image.read()
+    except Exception as e:
+        logger.error(f"Failed to read uploaded image bytes: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to read uploaded image data.",
+        )
+
+    if not file_bytes or len(file_bytes) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded image file is empty.",
+        )
+
+    # 3. Create Asynchronous Job
+    job_id = f"JOB-{uuid.uuid4().hex[:12].upper()}"
+    filename = image.filename or "sonar_image.png"
+    job_entry = job_service.create_job(job_id=job_id, original_filename=filename)
+
+    geolocation = AnalysisGeolocation(
+        latitude=lat_val,
+        longitude=lon_val,
+        depth_m=depth_val,
+        depth=depth_val,
+        heading=heading_val,
+        timestamp=valid_timestamp,
+        geolocation_available=bool(lat_val is not None and lon_val is not None),
+    )
+
+    # 4. Enqueue Background Execution
+    background_tasks.add_task(
+        _run_async_analysis_pipeline,
+        job_id=job_id,
+        file_bytes=file_bytes,
+        filename=filename,
+        content_type=image.content_type,
+        model_list=model_list,
+        geolocation=geolocation,
+        confidence=conf_val,
+        iou=iou_val,
+    )
+
+    return JobSubmissionResponse(
+        job_id=job_id,
+        status="queued",
+        progress=0.05,
+        current_step="Survey registered in execution queue",
+        created_at=job_entry["created_at"],
+        poll_url=job_entry["poll_url"],
+    )
+
+
+@router.get(
+    "/jobs/{job_id}",
+    response_model=JobStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get Asynchronous Analysis Job Status & Result",
+    description="Returns current progress, status, and full analysis response once completed.",
+)
+async def get_analysis_job_status(job_id: str) -> JobStatusResponse:
+    """Check progress or retrieve result of an asynchronous analysis job."""
+    job = job_service.get_job(job_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job '{job_id}' not found.",
+        )
+    return JobStatusResponse(**job)
 
 
 @router.get(

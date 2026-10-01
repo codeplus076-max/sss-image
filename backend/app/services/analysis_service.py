@@ -89,9 +89,13 @@ class AnalysisService:
         geolocation: Optional[AnalysisGeolocation] = None,
         confidence: Optional[float] = None,
         iou: Optional[float] = None,
+        progress_callback: Optional[Any] = None,
     ) -> AnalysisResponse:
         """Run complete analysis pipeline on an uploaded sonar image."""
         start_time = time.perf_counter()
+
+        if progress_callback:
+            progress_callback(0.12, "Conditioning sonar image and validating acoustic signal...")
 
         # 1. Image Preprocessing & Validation
         preprocessed: PreprocessedImage = preprocess_image_bytes(
@@ -103,11 +107,16 @@ class AnalysisService:
         # 2. Resolve Target Models
         target_models: List[ModelDefinition] = resolve_analysis_models(selected_models)
         executed_keys = [m.key for m in target_models]
+        total_models = max(1, len(target_models))
 
         # 3. Multi-Model Inference Execution
         raw_detections = []
         models_failed = 0
-        for model_def in target_models:
+        for idx, model_def in enumerate(target_models):
+            if progress_callback:
+                p_fraction = 0.20 + (0.65 * (idx / total_models))
+                progress_callback(p_fraction, f"Running {model_def.name} ({idx + 1}/{total_models})...")
+
             try:
                 inf_resp = inference_service.predict(
                     name_or_key=model_def.key,
@@ -134,6 +143,9 @@ class AnalysisService:
 
         # Conservative cross-model deduplication for overlapping models
         active_detections = deduplicate_cross_model_detections(raw_detections, iou_threshold=0.50)
+
+        if progress_callback:
+            progress_callback(0.92, "Synthesizing detection intelligence and spatial bounding boxes...")
 
         # 4. Assemble Geolocation and Survey Metadata (Strict Geolocation Integrity)
         geo = geolocation or AnalysisGeolocation()
