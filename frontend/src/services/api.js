@@ -294,6 +294,110 @@ export async function analyzeSonarImage(imageFile, options = {}) {
 }
 
 /**
+ * Analyzes multiple sonar images in sequence with live progress tracking,
+ * filtering and categorizing images with abnormalities vs clean seabed.
+ */
+export async function analyzeBatchSonarImages(imageFiles = [], options = {}, onProgress = null) {
+  if (!imageFiles || imageFiles.length === 0) {
+    throw new ApiError('No files provided for batch analysis.', 400);
+  }
+
+  const total = imageFiles.length;
+  const results = [];
+  const flagged = [];
+  const clean = [];
+  const failed = [];
+
+  for (let i = 0; i < total; i++) {
+    const file = imageFiles[i];
+    const previewUrl = URL.createObjectURL(file);
+
+    if (onProgress && typeof onProgress === 'function') {
+      onProgress({
+        currentIndex: i + 1,
+        total,
+        currentFile: file,
+        filename: file.name,
+        progress: Math.round((i / total) * 100),
+        phase: 'processing',
+        flaggedCount: flagged.length,
+        cleanCount: clean.length,
+      });
+    }
+
+    try {
+      const result = await analyzeSonarImage(file, options);
+      const rawDetections = result?.detections || [];
+      const detections = rawDetections.map((d, idx) =>
+        mapBackendDetection(d, idx, result.analysis_id)
+      );
+      const detectionsCount = detections.length;
+
+      const record = {
+        id: result?.analysis_id || `ITEM-${i + 1}`,
+        analysisId: result?.analysis_id,
+        file,
+        filename: file.name,
+        size: file.size,
+        previewUrl,
+        detectionsCount,
+        detections,
+        rawResult: result,
+        hasAnomalies: detectionsCount > 0,
+        highestConfidence: result?.summary?.highest_confidence || (detectionsCount > 0 ? Math.max(...detections.map(d => d.confidence || 0)) : 0),
+        categories: Array.from(new Set(detections.map(d => d.semantic_class_name || d.name || 'Anomaly'))),
+        processedAt: new Date().toISOString(),
+      };
+
+      results.push(record);
+      if (detectionsCount > 0) {
+        flagged.push(record);
+      } else {
+        clean.push(record);
+      }
+    } catch (err) {
+      console.warn(`Batch item ${file.name} failed:`, err);
+      const failedItem = {
+        id: `ERR-${i + 1}`,
+        file,
+        filename: file.name,
+        size: file.size,
+        previewUrl,
+        detectionsCount: 0,
+        detections: [],
+        hasAnomalies: false,
+        isError: true,
+        errorMessage: err.userFriendlyMessage || err.message || 'Failed validation/processing',
+      };
+      results.push(failedItem);
+      failed.push(failedItem);
+    }
+  }
+
+  if (onProgress && typeof onProgress === 'function') {
+    onProgress({
+      currentIndex: total,
+      total,
+      progress: 100,
+      phase: 'completed',
+      flaggedCount: flagged.length,
+      cleanCount: clean.length,
+    });
+  }
+
+  return {
+    totalScanned: total,
+    flaggedCount: flagged.length,
+    cleanCount: clean.length,
+    failedCount: failed.length,
+    flagged,
+    clean,
+    failed,
+    all: results,
+  };
+}
+
+/**
  * GET /api/v1/analysis
  * Returns paginated list of previous survey analyses
  */

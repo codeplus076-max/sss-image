@@ -11,7 +11,16 @@ import { soundFx } from './utils/audio';
 import { SonarHero } from './components/SonarHero';
 import SonarIngestView from './components/views/SonarIngestView';
 import SonarQualityView from './components/views/SonarQualityView';
-import { analyzeSonarImage, getAnalyses, getAnalysisById, mapBackendDetection, checkBackendHealth, API_BASE_URL } from './services/api';
+import BatchTriageView from './components/views/BatchTriageView';
+import { 
+  analyzeSonarImage, 
+  analyzeBatchSonarImages, 
+  getAnalyses, 
+  getAnalysisById, 
+  mapBackendDetection, 
+  checkBackendHealth, 
+  API_BASE_URL 
+} from './services/api';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('view-hero');
@@ -19,6 +28,11 @@ export default function App() {
   const [surveyMetadata, setSurveyMetadata] = useState(null);
   const [anomalies, setAnomalies] = useState([]);
   const [selectedAnomalyId, setSelectedAnomalyId] = useState(null);
+
+  // Batch Screening State
+  const [batchResults, setBatchResults] = useState(null);
+  const [isBatchScanning, setIsBatchScanning] = useState(false);
+  const [batchScanProgress, setBatchScanProgress] = useState(null);
 
   // Backend Integration State
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -248,6 +262,62 @@ export default function App() {
     }
   }, []);
 
+  // Batch Anomaly Screening Handler
+  const handleStartBatchScreening = useCallback(async (files, options = {}) => {
+    soundFx.playTargetLock();
+    setIsBatchScanning(true);
+    setBatchScanProgress({
+      currentIndex: 0,
+      total: files.length,
+      progress: 0,
+      filename: files[0]?.name || '',
+      flaggedCount: 0,
+      cleanCount: 0
+    });
+    setCurrentView('view-batch-triage');
+
+    try {
+      const results = await analyzeBatchSonarImages(files, options, (progress) => {
+        setBatchScanProgress(progress);
+      });
+      setBatchResults(results);
+      soundFx.playTargetLock();
+
+      if (results.all && results.all.length > 0) {
+        setRecentSurveys((prev) => [
+          ...results.all.map((item) => ({
+            name: item.filename,
+            analysisId: item.analysisId,
+            size: item.size ? `${Math.round(item.size / 1024)} KB` : 'N/A',
+            timestamp: new Date().toISOString(),
+            status: item.hasAnomalies ? 'FLAGGED' : 'CLEAN',
+            detectionsCount: item.detectionsCount || 0
+          })),
+          ...prev.slice(0, 10)
+        ]);
+      }
+    } catch (err) {
+      console.warn('Batch screening error:', err);
+      setAnalysisError(err.userFriendlyMessage || err.message || 'Batch screening failed.');
+    } finally {
+      setIsBatchScanning(false);
+    }
+  }, []);
+
+  // Inspect specific item from batch triage
+  const handleInspectBatchItem = useCallback((batchItem) => {
+    soundFx.playTargetLock();
+    setImportedSurveyFile(batchItem.file);
+    setAnalysisResult(batchItem.rawResult);
+    setAnomalies(batchItem.detections || []);
+    if (batchItem.detections && batchItem.detections.length > 0) {
+      setSelectedAnomalyId(batchItem.detections[0].id);
+    } else {
+      setSelectedAnomalyId(null);
+    }
+    setCurrentView('view-workspace');
+  }, []);
+
   // Update Anomaly Status from Operator in Detections view
   const handleUpdateAnomalyStatus = (id, newStatus, operatorNotes) => {
     setAnomalies(prev => prev.map(item => {
@@ -276,6 +346,7 @@ export default function App() {
         surveyFile={importedSurveyFile}
         onOpenLegal={() => setIsLegalOpen(true)}
         backendHealth={backendHealth}
+        batchCount={batchResults?.flaggedCount}
       />
 
       {/* Main View Container */}
@@ -304,6 +375,7 @@ export default function App() {
               analysisError={analysisError}
               onClearError={() => setAnalysisError(null)}
               onOpenAnalysis={handleOpenAnalysis}
+              onStartBatchScreening={handleStartBatchScreening}
               onContinueToQualityCheck={(file, metadata) => {
                 setImportedSurveyFile(file);
                 if (metadata) setSurveyMetadata(metadata);
@@ -313,6 +385,19 @@ export default function App() {
                 setAnalysisResult(null);
                 setCurrentView('view-quality');
               }}
+            />
+          </div>
+        )}
+
+        {currentView === 'view-batch-triage' && (
+          <div className="animate-fade-in h-full">
+            <BatchTriageView
+              batchResults={batchResults}
+              isScanning={isBatchScanning}
+              scanProgress={batchScanProgress}
+              onInspectImage={handleInspectBatchItem}
+              onNewBatchScan={() => setCurrentView('view-ingest')}
+              onNavigate={setCurrentView}
             />
           </div>
         )}

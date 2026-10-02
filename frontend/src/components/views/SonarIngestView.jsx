@@ -14,7 +14,9 @@ import {
   Compass,
   Layers,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Sparkles,
+  Scan
 } from 'lucide-react';
 import { soundFx } from '../../utils/audio';
 
@@ -24,7 +26,8 @@ export default function SonarIngestView({
   recentSurveys = [],
   analysisError = null,
   onClearError,
-  onOpenAnalysis
+  onOpenAnalysis,
+  onStartBatchScreening
 }) {
   const [dragActive, setDragActive] = useState(false);
   const [queuedFiles, setQueuedFiles] = useState([]);
@@ -238,6 +241,21 @@ export default function SonarIngestView({
       onContinueToQualityCheck(activeFile, surveyMeta);
     } else if (onNavigate) {
       onNavigate('view-quality');
+    }
+  };
+
+  const handleBatchProceed = () => {
+    soundFx.playTargetLock();
+    const surveyMeta = {
+      latitude: telemetry.latitude !== '' ? parseFloat(telemetry.latitude) : null,
+      longitude: telemetry.longitude !== '' ? parseFloat(telemetry.longitude) : null,
+      depth: telemetry.depth !== '' ? parseFloat(telemetry.depth) : null,
+      heading: telemetry.heading !== '' ? parseFloat(telemetry.heading) : null,
+      timestamp: telemetry.timestamp !== '' ? telemetry.timestamp : null,
+      selected_models: selectedModels,
+    };
+    if (onStartBatchScreening) {
+      onStartBatchScreening(queuedFiles, surveyMeta);
     }
   };
 
@@ -606,27 +624,53 @@ export default function SonarIngestView({
             <div className="bg-[#0b111e] border border-[#1a2638] rounded-sm p-4 space-y-3">
               <div className="flex items-center justify-between font-mono text-[10px] text-[#64748b] uppercase">
                 <span>Next Workflow Phase</span>
-                <span className="text-primary font-medium">02 — Signal Quality & Preprocessing</span>
+                <span className="text-primary font-medium">
+                  {queuedFiles.length > 1 ? 'Batch Screening & Anomaly Triage' : '02 — Signal Quality & Preprocessing'}
+                </span>
               </div>
 
-              <button
-                id="btn-continue-quality-check"
-                disabled={!hasFiles}
-                onClick={handleProceed}
-                className={`w-full inline-flex items-center justify-center space-x-2.5 px-5 py-3 rounded-sm font-mono text-xs uppercase tracking-wider font-semibold transition-colors ${
-                  hasFiles
-                    ? 'bg-[#132338] hover:bg-[#1a2f4a] border border-[#273d5c] hover:border-primary/60 text-[#f1f5f9] cursor-pointer'
-                    : 'bg-[#0d1420] border border-[#182333] text-[#50637c] cursor-not-allowed opacity-60'
-                }`}
-              >
-                <span>Continue to Quality Check</span>
-                <ArrowRight className={`w-3.5 h-3.5 ${hasFiles ? 'text-primary' : 'text-[#50637c]'}`} />
-              </button>
+              {queuedFiles.length > 1 ? (
+                <div className="space-y-2.5">
+                  <button
+                    id="btn-batch-screen-all"
+                    onClick={handleBatchProceed}
+                    className="w-full inline-flex items-center justify-center space-x-2.5 px-5 py-3.5 rounded-sm font-mono text-xs uppercase tracking-wider font-semibold bg-primary text-[#060911] hover:bg-primary/90 shadow-[0_0_16px_rgba(45,212,191,0.35)] transition-all cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-[#060911]" />
+                    <span>Screen All {queuedFiles.length} Images for Abnormalities</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-[#060911]" />
+                  </button>
+
+                  <button
+                    id="btn-continue-single-file"
+                    onClick={handleProceed}
+                    className="w-full inline-flex items-center justify-center space-x-2 px-4 py-2 rounded-sm font-mono text-[11px] text-[#8ea4bf] hover:text-white bg-[#0e1726] hover:bg-[#142033] border border-[#1d2d42] transition-colors cursor-pointer"
+                  >
+                    <span>Or inspect single file ({currentFile?.name})</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  id="btn-continue-quality-check"
+                  disabled={!hasFiles}
+                  onClick={handleProceed}
+                  className={`w-full inline-flex items-center justify-center space-x-2.5 px-5 py-3 rounded-sm font-mono text-xs uppercase tracking-wider font-semibold transition-colors ${
+                    hasFiles
+                      ? 'bg-[#132338] hover:bg-[#1a2f4a] border border-[#273d5c] hover:border-primary/60 text-[#f1f5f9] cursor-pointer'
+                      : 'bg-[#0d1420] border border-[#182333] text-[#50637c] cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  <span>Continue to Quality Check</span>
+                  <ArrowRight className={`w-3.5 h-3.5 ${hasFiles ? 'text-primary' : 'text-[#50637c]'}`} />
+                </button>
+              )}
 
               <p className="font-sans text-[11px] text-[#64748b] font-normal leading-relaxed">
-                {hasFiles 
-                  ? 'Verify swath continuity and signal-to-noise ratio in Preprocessing before AI anomaly segmentation.'
-                  : 'Import a side-scan sonar image or survey file above to activate signal conditioning.'}
+                {queuedFiles.length > 1
+                  ? `Automated AI screening across all ${queuedFiles.length} images. Swaths with detected abnormalities (wrecks, mines, pipelines, ghost gear) are filtered and returned for operator triage.`
+                  : hasFiles 
+                    ? 'Verify swath continuity and signal-to-noise ratio in Preprocessing before AI anomaly segmentation.'
+                    : 'Import one or more side-scan sonar files above to activate signal conditioning.'}
               </p>
             </div>
           </div>

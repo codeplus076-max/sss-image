@@ -11,7 +11,8 @@ export default function TopAppBar({
   anomalyCount,
   surveyFile,
   onOpenLegal,
-  backendHealth
+  backendHealth,
+  batchCount = null
 }) {
   const [isMuted, setIsMuted] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -38,6 +39,7 @@ export default function TopAppBar({
   const navItems = [
     { id: 'view-hero', label: 'Overview' },
     { id: 'view-ingest', label: 'Ingest' },
+    ...(batchCount != null || currentView === 'view-batch-triage' ? [{ id: 'view-batch-triage', label: 'Triage', badge: batchCount }] : []),
     { id: 'view-quality', label: 'Quality' },
     { id: 'view-detections', label: 'Detection', badge: anomalyCount },
     { id: 'view-workspace', label: 'Evidence' },
