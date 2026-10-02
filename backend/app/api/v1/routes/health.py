@@ -24,6 +24,6 @@ async def get_health() -> HealthResponse:
             "mine": "available",
             "shipwreck": "available",
             "subpipe": "available",
-            "natural_seabed": "unavailable",
+            "natural_seabed": "available",
         },
     )

@@ -265,19 +265,24 @@ export default function App() {
   // Batch Anomaly Screening Handler
   const handleStartBatchScreening = useCallback(async (files, options = {}) => {
     soundFx.playTargetLock();
+    // Sort files in natural numerical order (e.g. 01, 02, ... 15) so progress is strictly sequential
+    const sortedFiles = [...(files || [])].sort((a, b) =>
+      (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+    );
+
     setIsBatchScanning(true);
     setBatchScanProgress({
       currentIndex: 0,
-      total: files.length,
+      total: sortedFiles.length,
       progress: 0,
-      filename: files[0]?.name || '',
+      filename: sortedFiles[0]?.name || '',
       flaggedCount: 0,
       cleanCount: 0
     });
     setCurrentView('view-batch-triage');
 
     try {
-      const results = await analyzeBatchSonarImages(files, options, (progress) => {
+      const results = await analyzeBatchSonarImages(sortedFiles, options, (progress) => {
         setBatchScanProgress(progress);
       });
       setBatchResults(results);

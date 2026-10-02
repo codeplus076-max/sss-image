@@ -382,40 +382,41 @@ export default function BatchTriageView({
                   }`}
                 >
                   {/* Top Thumbnail Preview with Bounding Box Overlays */}
-                  <div className="relative w-full h-48 bg-[#03060c] overflow-hidden group">
+                  <div className="relative w-full h-52 bg-[#02050b] overflow-hidden group flex items-center justify-center">
                     {item.previewUrl ? (
-                      <img
-                        src={item.previewUrl}
-                        alt={item.filename}
-                        className="w-full h-full object-contain filter contrast-125"
-                      />
+                      <div className="relative h-full flex items-center justify-center">
+                        <img
+                          src={item.previewUrl}
+                          alt={item.filename}
+                          className="h-full w-auto max-w-full object-contain filter contrast-125 block"
+                        />
+                        {/* Visual Overlay of Bounding Boxes directly mapped to the image element */}
+                        {hasAnomalies && detections.map((det, dIdx) => {
+                          const box = det.bounding_box || det.box || {};
+                          const normX = box.norm_x1 != null ? box.norm_x1 * 100 : (box.x != null ? box.x : 0);
+                          const normY = box.norm_y1 != null ? box.norm_y1 * 100 : (box.y != null ? box.y : 0);
+                          const normW = box.norm_w != null ? box.norm_w * 100 : (box.w != null ? box.w : 10);
+                          const normH = box.norm_h != null ? box.norm_h * 100 : (box.h != null ? box.h : 10);
+
+                          return (
+                            <div
+                              key={dIdx}
+                              style={{
+                                left: `${Math.max(0, Math.min(96, normX))}%`,
+                                top: `${Math.max(0, Math.min(96, normY))}%`,
+                                width: `${Math.max(3, Math.min(100 - normX, normW))}%`,
+                                height: `${Math.max(3, Math.min(100 - normY, normH))}%`,
+                              }}
+                              className="absolute border-2 border-cyan-400 bg-cyan-400/20 pointer-events-none shadow-[0_0_8px_rgba(45,212,191,0.8)]"
+                            />
+                          );
+                        })}
+                      </div>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-xs font-mono text-[#64748b]">
                         <span>Acoustic Swath Preview</span>
                       </div>
                     )}
-
-                    {/* Visual Overlay of Bounding Boxes directly on Thumbnail */}
-                    {hasAnomalies && detections.map((det, dIdx) => {
-                      const box = det.bounding_box || det.box || {};
-                      const normX = box.norm_x1 != null ? box.norm_x1 * 100 : (box.x != null ? box.x : 0);
-                      const normY = box.norm_y1 != null ? box.norm_y1 * 100 : (box.y != null ? box.y : 0);
-                      const normW = box.norm_w != null ? box.norm_w * 100 : (box.w != null ? box.w : 10);
-                      const normH = box.norm_h != null ? box.norm_h * 100 : (box.h != null ? box.h : 10);
-
-                      return (
-                        <div
-                          key={dIdx}
-                          style={{
-                            left: `${Math.max(0, Math.min(90, normX))}%`,
-                            top: `${Math.max(0, Math.min(90, normY))}%`,
-                            width: `${Math.max(4, Math.min(100 - normX, normW))}%`,
-                            height: `${Math.max(4, Math.min(100 - normY, normH))}%`,
-                          }}
-                          className="absolute border border-cyan-400 bg-cyan-500/20 pointer-events-none shadow-[0_0_6px_rgba(45,212,191,0.6)]"
-                        />
-                      );
-                    })}
 
                     {/* Status Badge Tag */}
                     <div className="absolute top-2.5 left-2.5 font-mono text-[10px] px-2 py-0.5 rounded-xs flex items-center space-x-1.5 shadow-md">

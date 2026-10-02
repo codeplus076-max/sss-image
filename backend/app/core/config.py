@@ -50,6 +50,7 @@ class Settings(BaseSettings):
 
     # Hugging Face Remote ZeroGPU Inference Engine
     HF_SPACE_ID: Optional[str] = "Ksh508/SSS"
+    HF_TOKEN: Optional[str] = None
     USE_REMOTE_INFERENCE: bool = True
 
     @field_validator("DATABASE_URL", mode="before")

@@ -394,8 +394,10 @@ export async function analyzeBatchSonarImages(imageFiles = [], options = {}, onP
       });
     }
 
+    const batchOptions = { confidence: 0.35, ...(options || {}) };
+
     try {
-      const result = await analyzeSonarImage(file, options);
+      const result = await analyzeSonarImage(file, batchOptions);
       const rawDetections = result?.detections || [];
       const detections = rawDetections.map((d, idx) =>
         mapBackendDetection(d, idx, result.analysis_id)
