@@ -1,6 +1,6 @@
 """Pydantic schemas for normalized inference output, bounding boxes, and API prediction responses."""
 
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 
