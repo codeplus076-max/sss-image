@@ -197,6 +197,119 @@ class InferenceService:
             return None
 
     @staticmethod
+    def try_predict_all_remote(
+        target_models: List[ModelDefinition],
+        image: Union[np.ndarray, Image.Image, str, Path],
+        confidence: float,
+    ) -> Optional[Tuple[List[DetectionResult], Optional[Dict[str, Any]]]]:
+        """Run all requested models in a single remote ZeroGPU inference pass (2-3s vs 60s)."""
+        if not settings.USE_REMOTE_INFERENCE or not settings.HF_SPACE_ID:
+            return None
+
+        client = _get_hf_client()
+        if not client:
+            return None
+
+        temp_path = None
+        try:
+            from gradio_client import handle_file
+
+            img_for_yolo, img_width, img_height = _normalize_image_input(image)
+            if isinstance(image, (str, Path)):
+                temp_path = str(image)
+                cleanup = False
+            else:
+                if isinstance(img_for_yolo, np.ndarray):
+                    pil_img = Image.fromarray(img_for_yolo)
+                else:
+                    pil_img = Image.open(img_for_yolo)
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                    pil_img.save(f.name, format="PNG")
+                    temp_path = f.name
+                cleanup = True
+
+            # If exactly 1 specific model requested, pass that key; otherwise 'all'
+            detector_choice = target_models[0].key if len(target_models) == 1 else "all"
+
+            start_t = time.perf_counter()
+            _, result_json = client.predict(
+                image=handle_file(temp_path),
+                detector_choice=detector_choice,
+                conf_cutoff=float(confidence),
+                api_name="/predict",
+            )
+            elapsed_ms = (time.perf_counter() - start_t) * 1000.0
+
+            if cleanup and temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+
+            if not isinstance(result_json, dict) or "detections" not in result_json:
+                return None
+
+            model_map = {m.key: m for m in target_models}
+            detections: List[DetectionResult] = []
+            for d in result_json.get("detections", []):
+                m_key = d.get("model")
+                if m_key not in model_map:
+                    continue
+                definition = model_map[m_key]
+                cid = int(d.get("class_id", 0))
+                score = float(d.get("confidence", 0.0))
+                b = d.get("bbox", {})
+                x1 = float(b.get("x1", 0.0))
+                y1 = float(b.get("y1", 0.0))
+                x2 = float(b.get("x2", 0.0))
+                y2 = float(b.get("y2", 0.0))
+                bw = float(b.get("w", max(0.0, x2 - x1)))
+                bh = float(b.get("h", max(0.0, y2 - y1)))
+
+                safe_w = max(1, img_width)
+                safe_h = max(1, img_height)
+
+                bbox = BoundingBox(
+                    x1=round(x1, 2),
+                    y1=round(y1, 2),
+                    x2=round(x2, 2),
+                    y2=round(y2, 2),
+                    width=round(bw, 2),
+                    height=round(bh, 2),
+                    norm_x1=round(max(0.0, min(1.0, x1 / safe_w)), 4),
+                    norm_y1=round(max(0.0, min(1.0, y1 / safe_h)), 4),
+                    norm_w=round(max(0.0, min(1.0, bw / safe_w)), 4),
+                    norm_h=round(max(0.0, min(1.0, bh / safe_h)), 4),
+                )
+
+                raw_name = definition.get_raw_class_name(cid)
+                semantic_label = definition.get_semantic_label(cid)
+
+                detections.append(DetectionResult(
+                    model_name=definition.key,
+                    class_id=cid,
+                    raw_class_name=raw_name,
+                    semantic_class_name=semantic_label,
+                    confidence=round(score, 4),
+                    bounding_box=bbox,
+                    image_width=img_width,
+                    image_height=img_height,
+                ))
+
+            logger.info(
+                f"[ZeroGPU Batch Pass] Executed {len(target_models)} models in {elapsed_ms:.1f}ms (found {len(detections)} contacts)"
+            )
+            return detections, result_json.get("triage")
+        except Exception as e:
+            logger.warning(f"Remote batch ZeroGPU pass failed, falling back to sequential: {e}")
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+            return None
+
+    @staticmethod
     def predict(
         name_or_key: str,
         image: Union[np.ndarray, Image.Image, str, Path],

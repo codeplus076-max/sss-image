@@ -113,28 +113,41 @@ class AnalysisService:
         raw_detections = []
         models_failed = 0
         captured_triage = None
-        for idx, model_def in enumerate(target_models):
-            if progress_callback:
-                p_fraction = 0.20 + (0.65 * (idx / total_models))
-                progress_callback(p_fraction, f"Running {model_def.name} ({idx + 1}/{total_models})...")
 
-            try:
-                inf_resp = inference_service.predict(
-                    name_or_key=model_def.key,
-                    image=preprocessed.np_array,
-                    confidence=confidence,
-                    iou=iou,
-                )
-                if getattr(inf_resp, "triage", None) and not captured_triage:
-                    captured_triage = inf_resp.triage
-                raw_detections.extend(inf_resp.detections)
-            except Exception as e:
-                models_failed += 1
-                logger.warning(f"Inference error on model '{model_def.key}': {e}", exc_info=True)
-            finally:
-                if len(target_models) > 1:
-                    unload_model(model_def.key)
-            gc.collect()
+        # Fast path: execute all models in a single remote ZeroGPU cloud pass (~2-3s instead of 60s)
+        remote_batch = inference_service.try_predict_all_remote(
+            target_models=target_models,
+            image=preprocessed.np_array,
+            confidence=confidence if confidence is not None else 0.25,
+        )
+        if remote_batch is not None:
+            raw_detections, captured_triage = remote_batch
+            if progress_callback:
+                progress_callback(0.85, f"Remote ZeroGPU inference complete ({len(raw_detections)} contacts)")
+        else:
+            # Fallback path: sequential local execution
+            for idx, model_def in enumerate(target_models):
+                if progress_callback:
+                    p_fraction = 0.20 + (0.65 * (idx / total_models))
+                    progress_callback(p_fraction, f"Running {model_def.name} ({idx + 1}/{total_models})...")
+
+                try:
+                    inf_resp = inference_service.predict(
+                        name_or_key=model_def.key,
+                        image=preprocessed.np_array,
+                        confidence=confidence,
+                        iou=iou,
+                    )
+                    if getattr(inf_resp, "triage", None) and not captured_triage:
+                        captured_triage = inf_resp.triage
+                    raw_detections.extend(inf_resp.detections)
+                except Exception as e:
+                    models_failed += 1
+                    logger.warning(f"Inference error on model '{model_def.key}': {e}", exc_info=True)
+                finally:
+                    if len(target_models) > 1:
+                        unload_model(model_def.key)
+                gc.collect()
 
         # If and only if all models crashed/failed due to server memory or environmental constraints,
         # provide fallback acoustic contrast candidates labeled accurately as acoustic anomalies.
