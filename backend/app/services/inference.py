@@ -38,7 +38,11 @@ def _get_hf_client():
     if _hf_client is None:
         try:
             from gradio_client import Client
-            _hf_client = Client(settings.HF_SPACE_ID, hf_token=settings.HF_TOKEN)
+            token = settings.HF_TOKEN.strip() if settings.HF_TOKEN else None
+            try:
+                _hf_client = Client(settings.HF_SPACE_ID, token=token)
+            except TypeError:
+                _hf_client = Client(settings.HF_SPACE_ID, hf_token=token)
             logger.info(f"Connected to remote Hugging Face ZeroGPU engine: {settings.HF_SPACE_ID}")
         except Exception as e:
             logger.warning(f"Could not connect to HF Space {settings.HF_SPACE_ID}: {e}")

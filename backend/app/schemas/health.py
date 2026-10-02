@@ -8,7 +8,7 @@ class HealthResponse(BaseModel):
     """Health check response containing service state and model availability."""
 
     status: str = Field(default="ok", description="Operational status of backend service")
-    version: str = Field(default="1.0.2", description="Backend build version")
+    version: str = Field(default="1.0.3", description="Backend build version")
     service: str = Field(default="sonar-backend", description="Backend service identifier")
     hf_token_configured: bool = Field(default=False, description="Whether HF_TOKEN is configured in environment")
     models: Dict[str, str] = Field(
