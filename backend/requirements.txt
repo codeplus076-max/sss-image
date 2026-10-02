@@ -10,6 +10,7 @@ opencv-python-headless>=4.10.0.84
 
 # Persistence & Database
 sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
 
 # Machine Learning Runtime
 torch>=2.4.0
