@@ -24,6 +24,12 @@ services:
         value: "1"
       - key: MKL_NUM_THREADS
         value: "1"
+      - key: HF_SPACE_ID
+        value: "Ksh508/SSS"
+      - key: USE_REMOTE_INFERENCE
+        value: "true"
+      - key: HF_TOKEN
+        sync: false
       # Optional Managed Persistence (Populate in Render Dashboard to persist analyses across dyno reboots):
       # - key: DATABASE_URL
       #   sync: false
