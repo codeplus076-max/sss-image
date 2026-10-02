@@ -16,7 +16,8 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
-  Scan
+  Scan,
+  FolderOpen
 } from 'lucide-react';
 import { soundFx } from '../../utils/audio';
 
@@ -34,6 +35,7 @@ export default function SonarIngestView({
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [sessionSurveys, setSessionSurveys] = useState(recentSurveys);
   const [metadataDetails, setMetadataDetails] = useState(null);
+  const [loadingDemo, setLoadingDemo] = useState(false);
   const fileInputRef = useRef(null);
 
   // Optional Survey Telemetry & Model Selection State
@@ -155,6 +157,43 @@ export default function SonarIngestView({
     });
 
     soundFx.playSonarPing(1400, 0.5);
+  };
+
+  const handleLoadDemoBatch = async (e) => {
+    if (e) e.stopPropagation();
+    try {
+      setLoadingDemo(true);
+      soundFx.playSonarPing(1200, 0.4);
+      const demoNames = [
+        'Sonar_01_CLEAN_Seabed.jpg',
+        'Sonar_02_FLAGGED_Industrial_Cylinder___Drum.jpg',
+        'Sonar_03_CLEAN_Seabed.jpg',
+        'Sonar_04_FLAGGED_Industrial_Cylinder___Drum.jpg',
+        'Sonar_05_CLEAN_Seabed.jpg',
+        'Sonar_06_CLEAN_Seabed.jpg',
+        'Sonar_07_CLEAN_Seabed.jpg',
+        'Sonar_08_CLEAN_Seabed.jpg',
+        'Sonar_09_FLAGGED_Non-Mine_Mine-Like_Bottom_Object_(NOMBO).jpg'
+      ];
+      const loadedFiles = [];
+      for (const name of demoNames) {
+        const res = await fetch(`/sample_batch/${name}`);
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        const file = new File([blob], name, { type: 'image/jpeg' });
+        loadedFiles.push(file);
+      }
+      if (loadedFiles.length > 0) {
+        setQueuedFiles(loadedFiles);
+        setSelectedFileIndex(0);
+        inspectFile(loadedFiles[0]);
+        soundFx.playTargetLock();
+      }
+    } catch (err) {
+      console.warn('Failed to load demo batch:', err);
+    } finally {
+      setLoadingDemo(false);
+    }
   };
 
   const handleDrag = (e) => {
@@ -394,6 +433,17 @@ export default function SonarIngestView({
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Select Multiple (Batch)</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-load-demo-batch"
+                  disabled={loadingDemo}
+                  onClick={handleLoadDemoBatch}
+                  className="px-4 py-2 rounded-sm bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/50 hover:border-amber-400 text-amber-300 font-mono text-xs tracking-wider uppercase font-semibold transition-all cursor-pointer flex items-center space-x-1.5 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>{loadingDemo ? 'Loading...' : '⚡ Load Test Batch (9 Sonar Images)'}</span>
                 </button>
               </div>
 
