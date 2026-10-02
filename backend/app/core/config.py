@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     HF_TOKEN: Optional[str] = None
     USE_REMOTE_INFERENCE: bool = True
 
+    @field_validator("HF_TOKEN", mode="before")
+    @classmethod
+    def clean_hf_token(cls, v: Optional[str]) -> Optional[str]:
+        if isinstance(v, str):
+            clean = v.strip().strip("'\"")
+            return clean if clean else None
+        return v
+
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def normalize_database_url(cls, v: str) -> str:
