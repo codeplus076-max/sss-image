@@ -44,6 +44,7 @@ class InferenceResponse(BaseModel):
     image_width: int = Field(..., description="Input image width")
     image_height: int = Field(..., description="Input image height")
     inference_time_ms: float = Field(..., description="Inference latency in milliseconds")
+    triage: Optional[Dict[str, Any]] = Field(default=None, description="Triage classification result")
 
 
 class PredictModelInfo(BaseModel):

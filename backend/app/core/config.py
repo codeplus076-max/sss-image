@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     MODEL_CACHE_DIR: Optional[str] = None
     ADMIN_API_KEY: Optional[str] = None
 
+    # Hugging Face Remote ZeroGPU Inference Engine
+    HF_SPACE_ID: Optional[str] = "Ksh508/SSS"
+    USE_REMOTE_INFERENCE: bool = True
+
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def normalize_database_url(cls, v: str) -> str:

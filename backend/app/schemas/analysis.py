@@ -166,6 +166,9 @@ class AnalysisResponse(BaseModel):
         default_factory=list, description="List of all verified anomaly detections"
     )
     summary: AnalysisSummary = Field(..., description="Aggregated detection statistics")
+    triage: Optional[Dict[str, Any]] = Field(
+        None, description="Seabed classification triage results (clean seabed vs anomaly)"
+    )
     evidence_url: Optional[str] = Field(None, description="Endpoint to access the uploaded evidence image")
 
 

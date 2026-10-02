@@ -6,7 +6,9 @@ semantic class labels, bounding boxes, and metadata.
 """
 
 import gc
+import logging
 import os
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
@@ -14,6 +16,7 @@ import numpy as np
 import torch
 from PIL import Image
 
+from app.core.config import settings
 from app.core.model_registry import (
     ModelDefinition,
     get_model_definition,
@@ -24,6 +27,23 @@ from app.schemas.inference import (
     InferenceResponse,
 )
 from app.services.model_loader import load_model
+
+logger = logging.getLogger(__name__)
+
+_hf_client = None
+
+
+def _get_hf_client():
+    global _hf_client
+    if _hf_client is None:
+        try:
+            from gradio_client import Client
+            _hf_client = Client(settings.HF_SPACE_ID)
+            logger.info(f"Connected to remote Hugging Face ZeroGPU engine: {settings.HF_SPACE_ID}")
+        except Exception as e:
+            logger.warning(f"Could not connect to HF Space {settings.HF_SPACE_ID}: {e}")
+            _hf_client = False
+    return _hf_client if _hf_client is not False else None
 
 
 def _normalize_image_input(image: Union[np.ndarray, Image.Image, str, Path]) -> Tuple[Any, int, int]:
@@ -60,6 +80,123 @@ class InferenceService:
         return load_model(name_or_key)
 
     @staticmethod
+    def _try_predict_remote(
+        definition: ModelDefinition,
+        image: Union[np.ndarray, Image.Image, str, Path],
+        confidence: float,
+        iou: float,
+    ) -> Optional[InferenceResponse]:
+        """Attempt GPU-accelerated inference via remote Hugging Face ZeroGPU Space."""
+        client = _get_hf_client()
+        if not client:
+            return None
+
+        temp_path = None
+        try:
+            from gradio_client import handle_file
+
+            img_for_yolo, img_width, img_height = _normalize_image_input(image)
+            if isinstance(image, (str, Path)):
+                temp_path = str(image)
+                cleanup = False
+            else:
+                if isinstance(img_for_yolo, np.ndarray):
+                    pil_img = Image.fromarray(img_for_yolo)
+                else:
+                    pil_img = Image.open(img_for_yolo)
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                    pil_img.save(f.name, format="PNG")
+                    temp_path = f.name
+                cleanup = True
+
+            start_t = time.perf_counter()
+            _, result_json = client.predict(
+                image=handle_file(temp_path),
+                detector_choice=definition.key,
+                conf_cutoff=float(confidence),
+                api_name="/predict",
+            )
+            elapsed_ms = (time.perf_counter() - start_t) * 1000.0
+
+            if cleanup and temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+
+            if not isinstance(result_json, dict) or "detections" not in result_json:
+                return None
+
+            detections: List[DetectionResult] = []
+            for d in result_json.get("detections", []):
+                # Filter to requested model
+                if d.get("model") != definition.key:
+                    continue
+                cid = int(d.get("class_id", 0))
+                score = float(d.get("confidence", 0.0))
+                b = d.get("bbox", {})
+                x1 = float(b.get("x1", 0.0))
+                y1 = float(b.get("y1", 0.0))
+                x2 = float(b.get("x2", 0.0))
+                y2 = float(b.get("y2", 0.0))
+                bw = float(b.get("w", max(0.0, x2 - x1)))
+                bh = float(b.get("h", max(0.0, y2 - y1)))
+
+                safe_w = max(1, img_width)
+                safe_h = max(1, img_height)
+
+                bbox = BoundingBox(
+                    x1=round(x1, 2),
+                    y1=round(y1, 2),
+                    x2=round(x2, 2),
+                    y2=round(y2, 2),
+                    width=round(bw, 2),
+                    height=round(bh, 2),
+                    norm_x1=round(max(0.0, min(1.0, x1 / safe_w)), 4),
+                    norm_y1=round(max(0.0, min(1.0, y1 / safe_h)), 4),
+                    norm_w=round(max(0.0, min(1.0, bw / safe_w)), 4),
+                    norm_h=round(max(0.0, min(1.0, bh / safe_h)), 4),
+                )
+
+                raw_name = definition.get_raw_class_name(cid)
+                semantic_label = definition.get_semantic_label(cid)
+
+                detections.append(DetectionResult(
+                    model_name=definition.key,
+                    class_id=cid,
+                    raw_class_name=raw_name,
+                    semantic_class_name=semantic_label,
+                    confidence=round(score, 4),
+                    bounding_box=bbox,
+                    image_width=img_width,
+                    image_height=img_height,
+                ))
+
+            logger.info(
+                f"[ZeroGPU Cloud] {definition.key}: {len(detections)} targets in {elapsed_ms:.1f}ms"
+            )
+            return InferenceResponse(
+                model_name=definition.key,
+                model_architecture=definition.architecture,
+                detections_count=len(detections),
+                detections=detections,
+                image_width=img_width,
+                image_height=img_height,
+                inference_time_ms=round(elapsed_ms, 2),
+                triage=result_json.get("triage"),
+            )
+        except Exception as e:
+            logger.warning(
+                f"Remote ZeroGPU inference failed on model '{definition.key}', falling back to local: {e}"
+            )
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+            return None
+
+    @staticmethod
     def predict(
         name_or_key: str,
         image: Union[np.ndarray, Image.Image, str, Path],
@@ -78,12 +215,24 @@ class InferenceService:
             InferenceResponse containing normalized detection results.
         """
         definition: ModelDefinition = get_model_definition(name_or_key)
-        model = load_model(definition.key)
-
-        img_for_yolo, img_width, img_height = _normalize_image_input(image)
 
         conf_threshold = confidence if confidence is not None else definition.default_conf
         iou_threshold = iou if iou is not None else definition.default_iou
+
+        # 1. First priority: Remote GPU-accelerated ZeroGPU inference
+        if settings.USE_REMOTE_INFERENCE and settings.HF_SPACE_ID:
+            remote_resp = InferenceService._try_predict_remote(
+                definition=definition,
+                image=image,
+                confidence=conf_threshold,
+                iou=iou_threshold,
+            )
+            if remote_resp is not None:
+                return remote_resp
+
+        # 2. Local execution fallback
+        model = load_model(definition.key)
+        img_for_yolo, img_width, img_height = _normalize_image_input(image)
 
         # Native resolution required by this specific model (e.g. 1536 for Cylinder, 640 for others)
         native_imgsz = definition.input_size[0]
