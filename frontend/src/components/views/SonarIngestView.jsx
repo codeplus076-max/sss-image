@@ -366,12 +366,14 @@ export default function SonarIngestView({
                 DROP SONAR SURVEY IMAGERY
               </h2>
               <p className="font-sans text-xs text-[#8ea4bf] mt-1 max-w-sm">
-                Drag sonar waterfall swaths or survey files here, or browse your local directory.
+                Drag single or multiple sonar swaths here, or use the buttons below.
               </p>
 
-              <div className="mt-4">
+              {/* Dual Ingest Buttons: Single File vs Multi-Image Batch */}
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
                 <button
                   type="button"
+                  id="btn-browse-single"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (fileInputRef.current) fileInputRef.current.click();
@@ -380,32 +382,63 @@ export default function SonarIngestView({
                 >
                   Browse Files
                 </button>
+
+                <button
+                  type="button"
+                  id="btn-browse-multiple"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (fileInputRef.current) fileInputRef.current.click();
+                  }}
+                  className="px-4 py-2 rounded-sm bg-primary/20 hover:bg-primary/30 border border-primary/60 hover:border-primary text-primary font-mono text-xs tracking-wider uppercase font-semibold transition-all cursor-pointer flex items-center space-x-1.5 shadow-[0_0_12px_rgba(45,212,191,0.2)]"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Select Multiple (Batch)</span>
+                </button>
               </div>
+
+              <p className="font-mono text-[10px] text-[#50637c] mt-2.5">
+                Tip: Hold <span className="text-primary font-semibold">Ctrl</span> or <span className="text-primary font-semibold">Shift</span> to select multiple files at once in the file dialog.
+              </p>
             </div>
 
             {/* Queued Survey File Ledger */}
             {hasFiles && (
               <div className="bg-[#0b111e] border border-[#1a2638] rounded-sm p-3.5 space-y-2">
+                {queuedFiles.length > 1 && (
+                  <div className="p-2.5 rounded-sm bg-primary/10 border border-primary/30 flex items-center justify-between text-xs font-mono text-primary mb-2">
+                    <div className="flex items-center space-x-2">
+                      <Sparkles className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span className="font-semibold uppercase tracking-wide">
+                        Batch Mode Active: {queuedFiles.length} Survey Images Loaded
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-[#8ea4bf] hidden sm:inline">
+                      Click below to screen all for anomalies
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between text-xs font-mono pb-2 border-b border-[#162234]">
                   <span className="text-[#8ea4bf] uppercase font-semibold flex items-center space-x-2">
                     <span className="w-1.5 h-1.5 rounded-sm bg-primary"></span>
-                    <span>Queued File ({queuedFiles.length})</span>
+                    <span>Queued Files ({queuedFiles.length})</span>
                   </span>
 
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                      className="px-2 py-0.5 rounded-sm bg-[#101928] border border-[#1e2e42] hover:border-[#2a3f5a] text-[#8ea4bf] hover:text-on-surface font-mono text-[10px] flex items-center space-x-1 cursor-pointer"
+                      className="px-2 py-0.5 rounded-sm bg-[#101928] border border-[#1e2e42] hover:border-primary/50 text-[#8ea4bf] hover:text-primary font-mono text-[10px] flex items-center space-x-1 cursor-pointer"
                     >
                       <Plus className="w-3 h-3 text-primary" />
-                      <span>Add</span>
+                      <span>+ Add More</span>
                     </button>
                     <button
                       onClick={handleClearAll}
                       className="px-2 py-0.5 rounded-sm bg-[#101928] border border-[#1e2e42] hover:border-red-500/40 text-[#8ea4bf] hover:text-red-400 font-mono text-[10px] flex items-center space-x-1 cursor-pointer"
                     >
                       <RotateCcw className="w-3 h-3" />
-                      <span>Reset</span>
+                      <span>Clear All</span>
                     </button>
                   </div>
                 </div>
