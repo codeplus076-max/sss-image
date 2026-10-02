@@ -134,12 +134,26 @@ export default function TopAppBar({
         {/* Backend API Connection Status Badge */}
         <div 
           className="hidden sm:flex items-center space-x-1.5 font-mono text-[10px] px-2 py-1 rounded-sm bg-[#09111e]/70 border border-[#1b2a3f] text-[#8ea4bf]"
-          title={backendHealth?.connected ? `Backend API operational (${API_BASE_URL})` : `Backend API offline (${API_BASE_URL})`}
+          title={
+            backendHealth?.connected 
+              ? `Backend API operational (${API_BASE_URL})` 
+              : backendHealth?.status === 'waking'
+                ? `Waking up Render backend container (attempt ${backendHealth?.retry || 1}/8)...`
+                : `Backend API offline (${API_BASE_URL})`
+          }
         >
-          <span className={`w-1.5 h-1.5 rounded-full ${backendHealth?.connected ? 'bg-primary shadow-[0_0_6px_rgba(45,212,191,0.6)]' : 'bg-amber-400'}`}></span>
+          <span 
+            className={`w-1.5 h-1.5 rounded-full ${
+              backendHealth?.connected 
+                ? 'bg-primary shadow-[0_0_6px_rgba(45,212,191,0.6)]' 
+                : backendHealth?.status === 'waking'
+                  ? 'bg-amber-400 animate-ping'
+                  : 'bg-amber-400'
+            }`}
+          ></span>
           <span className="text-[#50637c]">API:</span>
           <span className={backendHealth?.connected ? 'text-primary font-medium' : 'text-amber-400 font-medium'}>
-            {backendHealth?.connected ? 'ONLINE' : 'OFFLINE'}
+            {backendHealth?.connected ? 'ONLINE' : backendHealth?.status === 'waking' ? 'WAKING UP...' : 'OFFLINE'}
           </span>
         </div>
 

@@ -33,11 +33,16 @@ export default function App() {
   const [layerDrawerOpen, setLayerDrawerOpen] = useState(false);
   const [isLegalOpen, setIsLegalOpen] = useState(false);
 
-  // Check backend health status on mount
+  // Check and warm up backend status on mount
   useEffect(() => {
     let isMounted = true;
-    checkBackendHealth()
-      .then((res) => {
+    let retryCount = 0;
+    const maxRetries = 8;
+    let timerId = null;
+
+    const probeBackend = async () => {
+      try {
+        const res = await checkBackendHealth();
         if (!isMounted) return;
         const isHealthy = res.status === 'healthy' || res.status === 'ok';
         setBackendHealth({
@@ -46,17 +51,34 @@ export default function App() {
           status: isHealthy ? 'healthy' : 'degraded',
           data: res
         });
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!isMounted) return;
-        setBackendHealth({
-          connected: false,
-          loading: false,
-          status: 'offline',
-          error: err.message
-        });
-      });
-    return () => { isMounted = false; };
+        if (retryCount < maxRetries) {
+          retryCount += 1;
+          setBackendHealth({
+            connected: false,
+            loading: true,
+            status: 'waking',
+            retry: retryCount,
+            error: err.message
+          });
+          timerId = setTimeout(probeBackend, 5000);
+        } else {
+          setBackendHealth({
+            connected: false,
+            loading: false,
+            status: 'offline',
+            error: err.message
+          });
+        }
+      }
+    };
+
+    probeBackend();
+    return () => {
+      isMounted = false;
+      if (timerId) clearTimeout(timerId);
+    };
   }, []);
 
   // Fetch real past survey analyses from backend on mount
