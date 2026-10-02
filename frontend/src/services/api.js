@@ -186,6 +186,74 @@ export async function pollAnalysisJob(jobId, onProgress = null, maxTimeoutMs = 1
 }
 
 /**
+ * Safely downscales oversized sonar images in-browser to prevent backend Render OOM crashes.
+ * Preserves full acoustic features while capping maximum dimension to 1280px.
+ */
+async function optimizeImageForUpload(file, maxDimension = 1280) {
+  if (!file || typeof window === 'undefined' || !(file instanceof Blob) || !file.type.startsWith('image/')) {
+    return file;
+  }
+
+  // If already reasonable size (under 600 KB and JPEG/WebP), don't touch
+  if (file.size < 600 * 1024 && (file.type === 'image/jpeg' || file.type === 'image/webp')) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width <= maxDimension && height <= maxDimension && file.size < 900 * 1024) {
+        resolve(file);
+        return;
+      }
+
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const baseName = (file.name || 'sonar_swath').replace(/\.[^/.]+$/, '');
+          const optimizedFile = new File([blob], `${baseName}.jpg`, {
+            type: 'image/jpeg',
+            lastModified: file.lastModified || Date.now(),
+          });
+          resolve(optimizedFile);
+        },
+        'image/jpeg',
+        0.88
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
+
+    img.src = url;
+  });
+}
+
+/**
  * POST /api/v1/analysis/jobs (with fallback to /api/v1/analysis/analyze)
  * Uploads an image for multi-model inference and persistence without gateway timeouts
  */
@@ -194,8 +262,9 @@ export async function analyzeSonarImage(imageFile, options = {}) {
     throw new ApiError('No file provided for analysis.', 400);
   }
 
+  const uploadFile = await optimizeImageForUpload(imageFile);
   const formData = new FormData();
-  formData.append('image', imageFile, imageFile.name || 'sonar_input.png');
+  formData.append('image', uploadFile, uploadFile.name || 'sonar_input.jpg');
 
   if (options.selected_models) {
     const modelsStr = Array.isArray(options.selected_models)

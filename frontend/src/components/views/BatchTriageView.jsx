@@ -28,12 +28,13 @@ export default function BatchTriageView({
   onNewBatchScan,
   onNavigate
 }) {
-  const [activeTab, setActiveTab] = useState('flagged'); // 'flagged' | 'clean' | 'all'
+  const [activeTab, setActiveTab] = useState('flagged'); // 'flagged' | 'clean' | 'failed' | 'all'
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   const flaggedList = batchResults?.flagged || [];
   const cleanList = batchResults?.clean || [];
+  const failedList = batchResults?.failed || [];
   const allList = batchResults?.all || [];
   const totalScanned = batchResults?.totalScanned || allList.length || 0;
 
@@ -47,6 +48,7 @@ export default function BatchTriageView({
     let baseList = [];
     if (activeTab === 'flagged') baseList = flaggedList;
     else if (activeTab === 'clean') baseList = cleanList;
+    else if (activeTab === 'failed') baseList = failedList;
     else baseList = allList;
 
     return baseList.filter(item => {
@@ -320,6 +322,19 @@ export default function BatchTriageView({
             >
               <span>All Scanned ({totalScanned})</span>
             </button>
+
+            {failedList.length > 0 && (
+              <button
+                onClick={() => { setActiveTab('failed'); soundFx.playSonarPing(900, 0.3); }}
+                className={`px-3 py-1.5 rounded-sm transition-colors cursor-pointer flex items-center space-x-1.5 ${
+                  activeTab === 'failed'
+                    ? 'bg-amber-500/20 text-amber-200 border border-amber-500/50 font-semibold'
+                    : 'text-amber-400/80 hover:text-amber-200'
+                }`}
+              >
+                <span>⚠️ Failed / Timeout ({failedList.length})</span>
+              </button>
+            )}
           </div>
 
           {/* Search by filename or target class */}
@@ -404,7 +419,12 @@ export default function BatchTriageView({
 
                     {/* Status Badge Tag */}
                     <div className="absolute top-2.5 left-2.5 font-mono text-[10px] px-2 py-0.5 rounded-xs flex items-center space-x-1.5 shadow-md">
-                      {hasAnomalies ? (
+                      {item.isError ? (
+                        <span className="bg-amber-950/90 border border-amber-500/60 text-amber-200 px-2 py-0.5 rounded-xs flex items-center space-x-1">
+                          <AlertTriangle className="w-3 h-3 text-amber-400" />
+                          <span>TIMEOUT / RETRY</span>
+                        </span>
+                      ) : hasAnomalies ? (
                         <span className="bg-red-950/80 border border-red-500/50 text-red-200 px-2 py-0.5 rounded-xs flex items-center space-x-1">
                           <AlertTriangle className="w-3 h-3 text-red-400" />
                           <span>{item.detectionsCount} {item.detectionsCount === 1 ? 'ANOMALY' : 'ANOMALIES'}</span>

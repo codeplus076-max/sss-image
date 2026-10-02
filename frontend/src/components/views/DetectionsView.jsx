@@ -71,14 +71,14 @@ export default function DetectionsView({
   }, [selectedAnomalyId]);
 
   useEffect(() => {
-    if (evidenceUrl) {
-      setImageUrl(evidenceUrl);
-    } else if (analysisResult?.analysis_id) {
-      setImageUrl(`${API_BASE_URL}/api/v1/analysis/${analysisResult.analysis_id}/evidence`);
-    } else if (surveyFile && surveyFile.type && surveyFile.type.startsWith('image/')) {
+    if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
       const url = URL.createObjectURL(surveyFile);
       setImageUrl(url);
       return () => URL.revokeObjectURL(url);
+    } else if (evidenceUrl) {
+      setImageUrl(evidenceUrl);
+    } else if (analysisResult?.analysis_id) {
+      setImageUrl(`${API_BASE_URL}/api/v1/analysis/${analysisResult.analysis_id}/evidence`);
     } else {
       setImageUrl(null);
     }
@@ -347,6 +347,13 @@ export default function DetectionsView({
                   src={imageUrl} 
                   alt="Side-Scan Sonar Swath" 
                   className="absolute inset-0 w-full h-full object-cover opacity-85 contrast-125"
+                  onError={(e) => {
+                    if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
+                      e.target.src = URL.createObjectURL(surveyFile);
+                    } else {
+                      e.target.style.display = 'none';
+                    }
+                  }}
                 />
               )}
 

@@ -72,19 +72,19 @@ export default function WorkspaceView({
     }
   }, [anomalies]);
 
-  // Sync image URL if backend evidence is available or surveyFile is an image
+  // Sync image URL: Prioritize local surveyFile for instant, bulletproof rendering
   useEffect(() => {
-    if (analysisResult?.evidence_url) {
+    if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
+      const url = URL.createObjectURL(surveyFile);
+      setImageUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else if (analysisResult?.evidence_url) {
       const fullUrl = analysisResult.evidence_url.startsWith('http')
         ? analysisResult.evidence_url
         : `${API_BASE_URL}${analysisResult.evidence_url}`;
       setImageUrl(fullUrl);
     } else if (analysisResult?.analysis_id) {
       setImageUrl(`${API_BASE_URL}/api/v1/analysis/${analysisResult.analysis_id}/evidence`);
-    } else if (surveyFile && surveyFile.type && surveyFile.type.startsWith('image/')) {
-      const url = URL.createObjectURL(surveyFile);
-      setImageUrl(url);
-      return () => URL.revokeObjectURL(url);
     } else {
       setImageUrl(null);
     }
@@ -434,6 +434,13 @@ export default function WorkspaceView({
                       src={imageUrl} 
                       alt="Side-Scan Sonar Swath" 
                       className="absolute inset-0 w-full h-full object-cover opacity-85 contrast-125 pointer-events-none"
+                      onError={(e) => {
+                        if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
+                          e.target.src = URL.createObjectURL(surveyFile);
+                        } else {
+                          e.target.style.display = 'none';
+                        }
+                      }}
                     />
                   )}
 
@@ -521,6 +528,13 @@ export default function WorkspaceView({
                     src={imageUrl} 
                     alt="Side-Scan Sonar Swath" 
                     className="absolute inset-0 w-full h-full object-cover opacity-85 contrast-125 pointer-events-none"
+                    onError={(e) => {
+                      if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
+                        e.target.src = URL.createObjectURL(surveyFile);
+                      } else {
+                        e.target.style.display = 'none';
+                      }
+                    }}
                   />
                 )}
                 {/* Nadir Water Column */}

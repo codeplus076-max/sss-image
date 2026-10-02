@@ -81,17 +81,17 @@ export default function ReportView({
   }, [anomalies, analysisResult]);
 
   useEffect(() => {
-    if (analysisResult?.evidence_url) {
+    if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
+      const url = URL.createObjectURL(surveyFile);
+      setUploadedImageUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else if (analysisResult?.evidence_url) {
       const fullUrl = analysisResult.evidence_url.startsWith('http')
         ? analysisResult.evidence_url
         : `${API_BASE_URL}${analysisResult.evidence_url}`;
       setUploadedImageUrl(fullUrl);
     } else if (analysisResult?.analysis_id) {
       setUploadedImageUrl(`${API_BASE_URL}/api/v1/analysis/${analysisResult.analysis_id}/evidence`);
-    } else if (surveyFile && surveyFile.type && surveyFile.type.startsWith('image/')) {
-      const url = URL.createObjectURL(surveyFile);
-      setUploadedImageUrl(url);
-      return () => URL.revokeObjectURL(url);
     } else {
       setUploadedImageUrl(null);
     }
@@ -557,6 +557,13 @@ export default function ReportView({
                         src={uploadedImageUrl || activeDetection.evidence_image}
                         alt={activeDetection.classification}
                         className="w-full h-full object-cover opacity-60 filter contrast-125 saturate-50"
+                        onError={(e) => {
+                          if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
+                            e.target.src = URL.createObjectURL(surveyFile);
+                          } else {
+                            e.target.style.display = 'none';
+                          }
+                        }}
                       />
                       
                       <div className="absolute inset-3 border border-primary/60 rounded-sm flex flex-col justify-between p-1.5 pointer-events-none">
