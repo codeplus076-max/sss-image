@@ -100,11 +100,11 @@ export default function TopAppBar({
               }`}
             >
               <span>{item.label}</span>
-              {Boolean(item.badge && item.badge > 0) && (
+              {typeof item.badge === 'number' && item.badge > 0 ? (
                 <span className="ml-1.5 font-mono text-[9px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1 py-0.2 rounded-sm">
                   {item.badge}
                 </span>
-              )}
+              ) : null}
 
               {/* Subtle Cyan Bottom Line Indicator */}
               {isActive && (
