@@ -280,8 +280,8 @@ export default function SonarIngestView({
               <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
               <div>
                 <span className="font-bold text-red-300 uppercase tracking-wide">
-                  {analysisError?.toLowerCase().includes('connect') || analysisError?.toLowerCase().includes('network') || analysisError?.toLowerCase().includes('server')
-                    ? 'Connection Error: '
+                  {analysisError?.toLowerCase().includes('reach') || analysisError?.toLowerCase().includes('spin up') || analysisError?.toLowerCase().includes('connect') || analysisError?.toLowerCase().includes('network') || analysisError?.toLowerCase().includes('server') || analysisError?.toLowerCase().includes('backend')
+                    ? 'Backend Connection Notice: '
                     : 'Invalid Sonar Image: '}
                 </span>
                 <span>{analysisError}</span>
