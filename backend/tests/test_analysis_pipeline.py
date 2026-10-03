@@ -121,10 +121,12 @@ def test_resolve_models_selected_subset():
     assert keys == ["ghostvision", "subpipes", "mines"]
 
 
-def test_resolve_models_natural_seabed_rejected():
-    """Verify requesting natural_seabed raises ModelUnavailableError."""
-    with pytest.raises(ModelUnavailableError):
-        resolve_analysis_models(["natural_seabed"])
+def test_resolve_models_natural_seabed_accepted():
+    """Verify requesting natural_seabed resolves correctly."""
+    resolved = resolve_analysis_models(["natural_seabed"])
+    assert len(resolved) == 1
+    assert resolved[0].key == "natural_seabed"
+    assert resolved[0].task == "classify"
 
 
 # ---------------------------------------------------------
@@ -143,7 +145,7 @@ def test_analysis_service_real_selected_model():
     assert res.analysis_id.startswith("SONAR-")
     assert res.image.width == 640
     assert res.image.height == 640
-    assert res.summary.models_executed == ["ghostvision"]
+    assert "ghostvision" in res.summary.models_executed
     assert res.geolocation.latitude is None
 
 
@@ -191,7 +193,7 @@ def test_api_analyze_success():
     assert data["image"]["height"] == 640
     assert "detections" in data
     assert "summary" in data
-    assert data["summary"]["models_executed"] == ["ghostvision"]
+    assert "ghostvision" in data["summary"]["models_executed"]
     assert data["geolocation"]["latitude"] is None
 
 
@@ -251,16 +253,20 @@ def test_api_analyze_invalid_heading():
     assert "Heading must be between" in response.json()["detail"]
 
 
-def test_api_analyze_natural_seabed_rejected():
-    """Verify requesting unavailable natural_seabed model returns HTTP 400."""
+def test_api_analyze_natural_seabed_accepted():
+    """Verify requesting natural_seabed model executes Stage 1 classification successfully."""
     img_bytes = _create_image_bytes("PNG")
     response = client.post(
         "/api/v1/analysis/analyze",
         data={"selected_models": "natural_seabed"},
         files={"image": ("sonar.png", img_bytes, "image/png")},
     )
-    assert response.status_code == 400
-    assert "Natural Seabed" in response.json()["detail"]
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    assert data["triage"] is not None
+    assert "clean_probability" in data["triage"]
+    assert "natural_seabed" in data["summary"]["models_executed"]
 
 
 def test_api_analyze_mocked_multi_detections():

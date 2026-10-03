@@ -124,7 +124,8 @@ export function mapBackendDetection(rawDet, index = 0, analysisId = null) {
     shadowLength: `${((box.h || 10) * 0.4).toFixed(1)} m`,
     acousticFeature: `Acoustic backscatter anomaly detected by ${rawDet.model || 'model'} (${displayClass})`,
     evidenceImage: evidenceUrl,
-    model: rawDet.model
+    model: rawDet.model,
+    competing_hypotheses: rawDet.competing_hypotheses || []
   };
 }
 
@@ -275,6 +276,8 @@ export async function analyzeSonarImage(imageFile, options = {}) {
 
   if (options.confidence != null) formData.append('confidence', String(options.confidence));
   if (options.iou != null) formData.append('iou', String(options.iou));
+  if (options.enable_seabed_gate != null) formData.append('enable_seabed_gate', String(options.enable_seabed_gate));
+  if (options.seabed_clean_threshold != null) formData.append('seabed_clean_threshold', String(options.seabed_clean_threshold));
   if (options.latitude != null && options.latitude !== '') formData.append('latitude', String(options.latitude));
   if (options.longitude != null && options.longitude !== '') formData.append('longitude', String(options.longitude));
   if (options.depth != null && options.depth !== '') formData.append('depth', String(options.depth));
@@ -394,7 +397,8 @@ export async function analyzeBatchSonarImages(imageFiles = [], options = {}, onP
       });
     }
 
-    const batchOptions = { confidence: 0.35, ...(options || {}) };
+    // Apply user options, or let calibrated backend model-specific thresholds apply
+    const batchOptions = { ...(options || {}) };
 
     try {
       const result = await analyzeSonarImage(file, batchOptions);
@@ -414,7 +418,9 @@ export async function analyzeBatchSonarImages(imageFiles = [], options = {}, onP
         detectionsCount,
         detections,
         rawResult: result,
+        triage: result?.triage,
         hasAnomalies: detectionsCount > 0,
+        isCleanTriage: result?.triage?.downstream_skipped === true,
         highestConfidence: result?.summary?.highest_confidence || (detectionsCount > 0 ? Math.max(...detections.map(d => d.confidence || 0)) : 0),
         categories: Array.from(new Set(detections.map(d => d.semantic_class_name || d.name || 'Anomaly'))),
         processedAt: new Date().toISOString(),

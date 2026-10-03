@@ -54,9 +54,9 @@ MODEL_REGISTRY: Dict[str, ModelDefinition] = {
         task="detect",
         raw_classes={0: "Cylinder"},
         semantic_labels={0: "Industrial Cylinder / Drum"},
-        default_conf=0.25,
+        default_conf=0.35,
         default_iou=0.70,
-        notes="High-resolution industrial cylinder & container hazard detector.",
+        notes="High-resolution industrial cylinder & container hazard detector. Calibrated threshold 0.35 suppresses seafloor false alarms.",
     ),
     "ghostvision": ModelDefinition(
         name="GhostVision",
@@ -86,9 +86,9 @@ MODEL_REGISTRY: Dict[str, ModelDefinition] = {
             0: "Mine-Like Contact (MILCO)",
             1: "Non-Mine Mine-Like Bottom Object (NOMBO)",
         },
-        default_conf=0.25,
+        default_conf=0.16,
         default_iou=0.70,
-        notes="Naval mine warfare detector for ordnance and non-ordnance bottom contacts.",
+        notes="Naval mine warfare detector for ordnance and bottom contacts. Calibrated threshold 0.16 optimizes mine detection recall.",
     ),
     "shipwreck": ModelDefinition(
         name="Shipwreck Detector",
@@ -109,10 +109,10 @@ MODEL_REGISTRY: Dict[str, ModelDefinition] = {
             2: "Non-Mine Mine-Like Bottom Object (NOMBO)",
             3: "Maritime Shipwreck / Hull",
         },
-        default_conf=0.25,
+        default_conf=0.16,
         default_iou=0.70,
         is_end2end=True,
-        notes="Multi-class compact detector for maritime wrecks, hulls, and bottom contacts.",
+        notes="Multi-class compact detector for maritime wrecks, hulls, and bottom contacts. Calibrated threshold 0.16 optimizes hull detection.",
     ),
     "subpipes": ModelDefinition(
         name="Subsea Pipeline Detector",
@@ -123,9 +123,28 @@ MODEL_REGISTRY: Dict[str, ModelDefinition] = {
         task="detect",
         raw_classes={0: "Pipeline"},
         semantic_labels={0: "Subsea Pipeline / Conduit"},
-        default_conf=0.15,
+        default_conf=0.28,
         default_iou=0.70,
-        notes="Industrial subsea infrastructure and pipeline detector.",
+        notes="Industrial subsea infrastructure and pipeline detector. Calibrated threshold 0.28 suppresses sand dune/ripple false alarms.",
+    ),
+    "natural_seabed": ModelDefinition(
+        name="Natural Seabed Classifier",
+        key="natural_seabed",
+        relative_path="natural_seabed.pt",
+        architecture="YOLO26m-cls",
+        input_size=(224, 224),
+        task="classify",
+        raw_classes={
+            0: "clean_seabed",
+            1: "debris_anomaly",
+        },
+        semantic_labels={
+            0: "Natural Clean Seabed",
+            1: "Seafloor Anomaly / Debris",
+        },
+        default_conf=0.50,
+        default_iou=0.50,
+        notes="High-precision seabed classification triage model. Distinguishes natural seabed patterns (sand, rock, mud, ripples) from anomalies/debris to hard-sort incoming swaths.",
     ),
 }
 
@@ -153,6 +172,10 @@ def get_model_definition(name_or_key: str) -> ModelDefinition:
         "minedetector": "mines",
         "cylinderdetector": "cylinder",
         "shipwreckdetector": "shipwreck",
+        "naturalseabed": "natural_seabed",
+        "seabed": "natural_seabed",
+        "seabedclassifier": "natural_seabed",
+        "naturalseabedclassifier": "natural_seabed",
     }
     if normalized_key in aliases:
         return MODEL_REGISTRY[aliases[normalized_key]]

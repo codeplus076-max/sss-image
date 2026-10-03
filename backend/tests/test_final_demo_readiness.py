@@ -192,7 +192,7 @@ def test_08_multi_model_analysis_execution():
     resp = client.post(
         "/api/v1/analysis/analyze",
         files={"image": ("sonar_multimodel.png", img_bytes, "image/png")},
-        data={"selected_models": "cylinder,mines,shipwreck"},
+        data={"selected_models": "cylinder,mines,shipwreck", "enable_seabed_gate": "false"},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -360,19 +360,19 @@ def test_19_health_endpoint():
     assert data["service"] == "sonar-backend"
 
 
-# 20. Natural Seabed remains disabled
-def test_20_natural_seabed_remains_disabled():
-    # GET /api/v1/models explicitly marks natural_seabed as unavailable
+# 20. Natural Seabed is available
+def test_20_natural_seabed_is_available():
+    # GET /api/v1/models explicitly marks natural_seabed as available
     resp = client.get("/api/v1/models")
     assert resp.status_code == 200
     data = resp.json()
-    assert "natural_seabed" in data["unavailable_models"]
+    assert "natural_seabed" not in data["unavailable_models"]
     active_keys = [m["id"] for m in data["models"]]
-    assert "natural_seabed" not in active_keys
+    assert "natural_seabed" in active_keys
 
-    # Health endpoint explicitly reports natural_seabed as unavailable
+    # Health endpoint explicitly reports natural_seabed as available
     health = client.get("/api/v1/health").json()
-    assert health["models"]["natural_seabed"] == "unavailable"
+    assert health["models"]["natural_seabed"] == "available"
 
 
 # 21. No fake coordinates

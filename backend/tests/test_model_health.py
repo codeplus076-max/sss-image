@@ -15,9 +15,9 @@ def test_inspect_single_model():
 
 
 def test_inspect_all_registered_models():
-    """Verify all 5 registered models pass disk existence and loadability checks."""
+    """Verify all 6 registered models pass disk existence and loadability checks."""
     all_info = inspect_all_models()
-    assert len(all_info) == 5
+    assert len(all_info) == 6
 
     for info in all_info:
         assert info.exists_on_disk is True, f"Model {info.model_key} failed disk check"

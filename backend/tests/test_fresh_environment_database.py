@@ -113,7 +113,8 @@ def test_fresh_database_full_lifecycle(fresh_db_env):
     # 3. Model listing endpoint works
     models_resp = client.get("/api/v1/models")
     assert models_resp.status_code == 200
-    assert "natural_seabed" in models_resp.json()["unavailable_models"]
+    assert "natural_seabed" not in models_resp.json()["unavailable_models"]
+    assert any(m["id"] == "natural_seabed" for m in models_resp.json()["models"])
 
     # 4. History is initially empty in fresh environment
     init_hist = client.get("/api/v1/analysis")

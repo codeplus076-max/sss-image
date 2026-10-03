@@ -35,7 +35,7 @@ def test_api_health_endpoint():
     assert models["mine"] == "available"
     assert models["shipwreck"] == "available"
     assert models["subpipe"] == "available"
-    assert models["natural_seabed"] == "unavailable"
+    assert models["natural_seabed"] == "available"
 
 
 # 2. Models Listing API Test
@@ -45,7 +45,7 @@ def test_api_models_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert "models" in data
-    assert data["total"] == 5
+    assert data["total"] == 6
 
     models_by_id = {m["id"]: m for m in data["models"]}
     assert "cylinder" in models_by_id
@@ -53,6 +53,7 @@ def test_api_models_endpoint():
     assert "mines" in models_by_id
     assert "shipwreck" in models_by_id
     assert "subpipes" in models_by_id
+    assert "natural_seabed" in models_by_id
 
     # Verify Cylinder input resolution
     assert models_by_id["cylinder"]["input_resolution"] == [1536, 1536]
@@ -63,9 +64,11 @@ def test_api_models_endpoint():
     assert "Unknown / Unlabeled" in shipwreck_classes[0]["display_name"]
     assert shipwreck_classes[3]["raw_class_name"] == "Shipwreck"
 
-    # Verify Natural Seabed is explicitly listed as unavailable/pending
+    # Verify Natural Seabed is active and not in unavailable_models
     assert "unavailable_models" in data
-    assert "natural_seabed" in data["unavailable_models"]
+    assert "natural_seabed" not in data["unavailable_models"]
+    assert models_by_id["natural_seabed"]["status"] == "available"
+    assert models_by_id["natural_seabed"]["task"] == "classify"
 
 
 # 3. Real Integration Test (Reaching Actual Model Inference Service)

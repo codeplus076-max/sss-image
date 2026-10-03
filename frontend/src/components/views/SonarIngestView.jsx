@@ -47,6 +47,8 @@ export default function SonarIngestView({
     heading: '',
     timestamp: ''
   });
+  const [enableSeabedGate, setEnableSeabedGate] = useState(true);
+  const [seabedCleanThreshold, setSeabedCleanThreshold] = useState(0.92);
   const [selectedModels, setSelectedModels] = useState([
     'cylinder',
     'ghostvision',
@@ -55,18 +57,22 @@ export default function SonarIngestView({
     'subpipes'
   ]);
 
-  // Model catalog specification (Natural Seabed explicitly unavailable per system architecture)
+  // Model catalog specification
   const availableModelList = [
     { id: 'cylinder', name: 'Cylinder', available: true },
     { id: 'ghostvision', name: 'GhostVision (Crab-Pot)', available: true },
     { id: 'mines', name: 'Mines (MILCO / NOMBO)', available: true },
     { id: 'shipwreck', name: 'Shipwreck', available: true },
     { id: 'subpipes', name: 'SubPipes (Pipelines)', available: true },
-    { id: 'natural_seabed', name: 'Natural Seabed', available: false, note: 'Pending Training' }
+    { id: 'natural_seabed', name: 'Natural Seabed (Stage-1 Gate)', available: true, isGate: true, note: 'Triage Gate' }
   ];
 
   const handleToggleModel = (id) => {
-    if (id === 'natural_seabed') return;
+    if (id === 'natural_seabed') {
+      soundFx.playSonarPing(1100, 0.2);
+      setEnableSeabedGate(prev => !prev);
+      return;
+    }
     soundFx.playSonarPing(1200, 0.2);
     setSelectedModels(prev => 
       prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
@@ -273,7 +279,9 @@ export default function SonarIngestView({
       depth: telemetry.depth !== '' ? parseFloat(telemetry.depth) : null,
       heading: telemetry.heading !== '' ? parseFloat(telemetry.heading) : null,
       timestamp: telemetry.timestamp !== '' ? telemetry.timestamp : null,
-      selected_models: selectedModels
+      selected_models: selectedModels,
+      enable_seabed_gate: enableSeabedGate,
+      seabed_clean_threshold: seabedCleanThreshold
     };
 
     if (onContinueToQualityCheck) {
@@ -292,6 +300,8 @@ export default function SonarIngestView({
       heading: telemetry.heading !== '' ? parseFloat(telemetry.heading) : null,
       timestamp: telemetry.timestamp !== '' ? telemetry.timestamp : null,
       selected_models: selectedModels,
+      enable_seabed_gate: enableSeabedGate,
+      seabed_clean_threshold: seabedCleanThreshold
     };
     if (onStartBatchScreening) {
       onStartBatchScreening(queuedFiles, surveyMeta);
@@ -599,14 +609,74 @@ export default function SonarIngestView({
                     </div>
                   </div>
 
-                  {/* Model Checklist */}
+                  {/* Stage-1 Natural Seabed Triage Gate & Uncertainty Filter */}
+                  <div className="pt-2 border-t border-[#162234] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Sparkles className="w-3.5 h-3.5 text-primary" />
+                        <span className="text-[10px] text-[#8ea4bf] uppercase font-semibold">
+                          Stage-1 Seabed Triage Gate (YOLO26m-cls)
+                        </span>
+                      </div>
+                      <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
+                        enableSeabedGate ? 'bg-primary/15 text-primary border border-primary/30' : 'bg-slate-800 text-[#64748b]'
+                      }`}>
+                        {enableSeabedGate ? 'GATE ACTIVE' : 'BYPASS DISABLED'}
+                      </span>
+                    </div>
+
+                    <div className="bg-[#070c14] border border-[#1a2638] rounded-sm p-2.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center space-x-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={enableSeabedGate}
+                            onChange={(e) => {
+                              soundFx.playSonarPing(1100, 0.2);
+                              setEnableSeabedGate(e.target.checked);
+                            }}
+                            className="rounded border-[#22354e] bg-[#0c131f] text-primary focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                          />
+                          <span className="text-[11px] text-on-surface font-medium">
+                            Enable Hard Sort Clean Seabed Auto-Bypass
+                          </span>
+                        </label>
+                        <span className="text-[10px] font-mono text-primary font-bold">
+                          {(seabedCleanThreshold * 100).toFixed(0)}% $\tau$
+                        </span>
+                      </div>
+
+                      {enableSeabedGate && (
+                        <div className="space-y-1 pt-1">
+                          <div className="flex items-center justify-between text-[9px] font-mono text-[#64748b]">
+                            <span>CLEAN THRESHOLD (τ): {(seabedCleanThreshold * 100).toFixed(0)}%</span>
+                            <span className="text-[#8ea4bf]">UNCERTAINTY BAND: &lt;{(seabedCleanThreshold * 100).toFixed(0)}% → FORWARD</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.70"
+                            max="0.99"
+                            step="0.01"
+                            value={seabedCleanThreshold}
+                            onChange={(e) => setSeabedCleanThreshold(parseFloat(e.target.value))}
+                            className="w-full accent-[#2dd4bf] h-1.5 bg-[#141e2d] rounded-sm cursor-pointer"
+                          />
+                          <p className="font-sans text-[10px] text-[#7d93ad] leading-normal">
+                            Swaths with clean seabed confidence ≥ {(seabedCleanThreshold * 100).toFixed(0)}% are conclusively verified and bypass downstream detectors (~85% compute savings). Swaths with anomaly probability ≥ 50% or unsure confidence (&lt;{(seabedCleanThreshold * 100).toFixed(0)}%) are forwarded to specialized models.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Downstream Model Checklist */}
                   <div className="pt-2 border-t border-[#162234]">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] text-[#8ea4bf] uppercase font-semibold">
-                        Inference Models ({selectedModels.length} Active)
+                        Downstream Specialized Detectors ({selectedModels.length} Active)
                       </span>
-                      <span className="text-[9px] text-[#50637c]">
-                        Natural Seabed currently unavailable
+                      <span className="text-[9px] text-primary font-mono">
+                        Stage-2 Object Detectors
                       </span>
                     </div>
 
@@ -661,7 +731,7 @@ export default function SonarIngestView({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                       {availableModelList.map((m) => {
-                        const isChecked = selectedModels.includes(m.id);
+                        const isChecked = m.id === 'natural_seabed' ? enableSeabedGate : selectedModels.includes(m.id);
                         const isAvailable = m.available;
 
                         return (
@@ -689,11 +759,15 @@ export default function SonarIngestView({
                               <span className="text-[11px] font-medium">{m.name}</span>
                             </div>
 
-                            {!isAvailable && (
+                            {m.isGate ? (
+                              <span className="text-[9px] text-primary font-mono px-1 rounded bg-primary/10 border border-primary/20">
+                                {m.note}
+                              </span>
+                            ) : !isAvailable ? (
                               <span className="text-[9px] text-amber-500/80 font-mono px-1 rounded bg-amber-500/10">
                                 {m.note}
                               </span>
-                            )}
+                            ) : null}
                           </div>
                         );
                       })}

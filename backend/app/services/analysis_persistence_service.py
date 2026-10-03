@@ -86,6 +86,7 @@ class AnalysisPersistenceService:
             "models_executed": analysis_response.summary.models_executed,
             "objects_by_type": analysis_response.summary.objects_by_type,
             "execution_time_ms": analysis_response.summary.execution_time_ms,
+            "triage": analysis_response.triage,
         }
 
         evidence_data: Dict[str, Any] = {
@@ -118,6 +119,10 @@ class AnalysisPersistenceService:
                     "norm_y1": det.bbox.norm_y1 if det.bbox.norm_y1 is not None else 0.0,
                     "norm_w": det.bbox.norm_w if det.bbox.norm_w is not None else 0.0,
                     "norm_h": det.bbox.norm_h if det.bbox.norm_h is not None else 0.0,
+                    "competing_hypotheses": [
+                        h.model_dump() if hasattr(h, "model_dump") else h
+                        for h in (getattr(det, "competing_hypotheses", None) or [])
+                    ],
                 }
             )
 
@@ -226,6 +231,7 @@ class AnalysisPersistenceService:
                         "y": pct_y,
                         "display": f"X: {round(pct_x)}%, Y: {round(pct_y)}%",
                     },
+                    competing_hypotheses=getattr(det, "competing_hypotheses", None) or [],
                 )
             )
 
@@ -271,6 +277,7 @@ class AnalysisPersistenceService:
             metadata=survey_meta,
             detections=detections,
             summary=summary,
+            triage=getattr(record, "triage", None),
             created_at=record.created_at,
             evidence=evidence_schema,
             evidence_url=evidence_url,

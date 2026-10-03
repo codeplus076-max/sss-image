@@ -51,6 +51,7 @@ class AnalysisRecord(Base):
     models_executed: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     objects_by_type: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     execution_time_ms: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    triage: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # Audit Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -119,6 +120,9 @@ class DetectionRecord(Base):
     norm_y1: Mapped[float] = mapped_column(Float, nullable=False)
     norm_w: Mapped[float] = mapped_column(Float, nullable=False)
     norm_h: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # Multi-Model Competing Hypotheses
+    competing_hypotheses: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 

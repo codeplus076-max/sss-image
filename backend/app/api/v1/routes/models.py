@@ -46,5 +46,5 @@ async def list_models() -> ModelListResponse:
     return ModelListResponse(
         models=model_details,
         total=len(model_details),
-        unavailable_models=["natural_seabed"],
+        unavailable_models=[],
     )

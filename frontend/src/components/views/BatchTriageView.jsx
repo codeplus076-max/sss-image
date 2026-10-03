@@ -430,10 +430,15 @@ export default function BatchTriageView({
                           <AlertTriangle className="w-3 h-3 text-red-400" />
                           <span>{item.detectionsCount} {item.detectionsCount === 1 ? 'ANOMALY' : 'ANOMALIES'}</span>
                         </span>
+                      ) : item.isCleanTriage ? (
+                        <span className="bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 px-2 py-0.5 rounded-xs flex items-center space-x-1" title={`Natural Seabed Gate: ${((item.triage?.clean_prob || 0) * 100).toFixed(1)}% clean seabed confidence`}>
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          <span>CLEAN SEABED (TRIAGE BYPASS {((item.triage?.clean_prob || 0) * 100).toFixed(0)}%)</span>
+                        </span>
                       ) : (
                         <span className="bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 px-2 py-0.5 rounded-xs flex items-center space-x-1">
                           <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                          <span>CLEAN SEABED</span>
+                          <span>CLEAN SEABED (FULL SCAN)</span>
                         </span>
                       )}
                     </div>

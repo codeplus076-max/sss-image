@@ -37,6 +37,17 @@ class DetectionIntelligence(BaseModel):
     evidence_status: str = Field("AVAILABLE", description="Evidence asset availability: 'AVAILABLE' or 'NOT AVAILABLE'")
 
 
+class AlternativeHypothesis(BaseModel):
+    """Secondary detection candidate when multiple models detect the same physical contact."""
+    model: str = Field(..., description="Model identifier that made the prediction")
+    raw_class: str = Field(..., description="Raw model class label")
+    display_class: str = Field(..., description="Normalized display class")
+    category: Optional[str] = Field(None, description="Normalized category")
+    confidence: float = Field(..., description="Confidence score [0.0 - 1.0]")
+    confidence_percent: Optional[float] = Field(None, description="Confidence percentage [0 - 100%]")
+    priority: Optional[str] = Field("LOW", description="Operational priority level: 'HIGH', 'MEDIUM', or 'LOW'")
+
+
 class HighestPriorityDetectionSummary(BaseModel):
     """Summary of the single highest-priority anomaly detection."""
     detection_id: str = Field(..., description="Unique detection identifier")
@@ -56,6 +67,12 @@ class AnalysisDetection(BaseModel):
     category: Optional[str] = Field(None, description="Normalized high-level anomaly category")
     confidence: float = Field(..., description="Confidence score [0.0 - 1.0]")
     bbox: AnalysisBoundingBox = Field(..., description="Bounding box geometry")
+
+    # Multi-Model Overlap Intelligence: Competing hypotheses on same physical contact
+    competing_hypotheses: List[AlternativeHypothesis] = Field(
+        default_factory=list,
+        description="Alternative candidate predictions from overlapping models for this contact"
+    )
 
     # Intelligence & Review Layer
     priority: Optional[str] = Field("LOW", description="Operational review priority: 'HIGH', 'MEDIUM', or 'LOW'")

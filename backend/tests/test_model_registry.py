@@ -9,21 +9,25 @@ from app.core.model_registry import (
 )
 
 
-def test_registry_contains_five_verified_models():
-    """Verify exactly 5 verified models exist in the registry."""
+def test_registry_contains_six_verified_models():
+    """Verify exactly 6 verified models exist in the registry including natural_seabed."""
     registered = list_registered_models()
     keys = {m.key for m in registered}
-    expected_keys = {"cylinder", "ghostvision", "mines", "shipwreck", "subpipes"}
+    expected_keys = {"cylinder", "ghostvision", "mines", "shipwreck", "subpipes", "natural_seabed"}
     assert keys == expected_keys
-    assert len(registered) == 5
+    assert len(registered) == 6
 
 
-def test_natural_seabed_not_in_registry():
-    """Verify that Natural Seabed is NOT registered since it is absent from repository."""
-    assert "natural_seabed" not in MODEL_REGISTRY
-    assert "seabed" not in MODEL_REGISTRY
-    with pytest.raises(ModelNotFoundError):
-        get_model_definition("natural_seabed")
+def test_natural_seabed_in_registry():
+    """Verify that Natural Seabed classifier is properly registered with expected task and classes."""
+    assert "natural_seabed" in MODEL_REGISTRY
+    m = get_model_definition("natural_seabed")
+    assert m.architecture == "YOLO26m-cls"
+    assert m.input_size == (224, 224)
+    assert m.task == "classify"
+    assert m.raw_classes == {0: "clean_seabed", 1: "debris_anomaly"}
+    assert m.get_semantic_label(0) == "Natural Clean Seabed"
+    assert m.get_semantic_label(1) == "Seafloor Anomaly / Debris"
 
 
 def test_cylinder_model_properties():

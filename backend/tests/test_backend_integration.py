@@ -139,7 +139,7 @@ def test_selected_model_validation_and_aliases():
             data={"selected_models": "pipeline"},
         )
         assert res.status_code == 200
-        assert res.json()["summary"]["models_executed"] == ["subpipes"]
+        assert "subpipes" in res.json()["summary"]["models_executed"]
 
         # Test alias 'mine'
         res2 = client.post(
@@ -148,11 +148,11 @@ def test_selected_model_validation_and_aliases():
             data={"selected_models": "mine"},
         )
         assert res2.status_code == 200
-        assert res2.json()["summary"]["models_executed"] == ["mines"]
+        assert "mines" in res2.json()["summary"]["models_executed"]
 
 
 # =========================================================================
-# 3. Invalid Model Handling & Unavailable Natural Seabed
+# 3. Invalid Model Handling & Verified Natural Seabed Execution
 # =========================================================================
 
 def test_invalid_model_handling():
@@ -167,16 +167,20 @@ def test_invalid_model_handling():
     assert "is not registered" in res.json()["detail"]
 
 
-def test_natural_seabed_model_unavailable():
-    """Verify requesting Natural Seabed returns 400 informing user of unreadiness."""
+def test_natural_seabed_model_available():
+    """Verify requesting Natural Seabed executes classification triage successfully."""
     img_bytes = _generate_test_image_bytes()
     res = client.post(
         "/api/v1/analysis/analyze",
         files={"image": ("test.png", img_bytes, "image/png")},
         data={"selected_models": "natural_seabed"},
     )
-    assert res.status_code == 400
-    assert "Natural Seabed model is currently unavailable" in res.json()["detail"]
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "completed"
+    assert data["triage"] is not None
+    assert "clean_probability" in data["triage"]
+    assert "natural_seabed" in data["summary"]["models_executed"]
 
 
 # =========================================================================

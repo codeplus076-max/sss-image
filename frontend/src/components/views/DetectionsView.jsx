@@ -199,14 +199,29 @@ export default function DetectionsView({
             <span className="text-[10px] text-primary/80 hidden sm:inline">PROCESSING SWATH</span>
           </div>
         ) : analysisResult ? (
-          <div className="flex items-center justify-between p-2.5 bg-[#0b111e] border border-[#1a2638] rounded-sm text-xs font-mono text-[#8ea4bf]">
-            <div className="flex items-center space-x-2">
-              <ShieldCheck className="w-3.5 h-3.5 text-primary shrink-0" />
-              <span>
-                LIVE INFERENCE RECORD · Analysis ID: <strong className="text-on-surface">{analysisResult.analysis_id}</strong> · Models: <span className="text-primary">{analysisResult.summary?.models_executed?.join(', ') || 'All Verified Models'}</span> · Total Detections: <strong className="text-on-surface">{analysisResult.summary?.total_detections ?? 0}</strong>
-              </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 bg-[#0b111e] border border-[#1a2638] rounded-sm text-xs font-mono text-[#8ea4bf] gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>
+                  LIVE INFERENCE RECORD · ID: <strong className="text-on-surface">{analysisResult.analysis_id}</strong> · Models: <span className="text-primary">{analysisResult.summary?.models_executed?.join(', ') || 'All Verified Models'}</span>
+                </span>
+              </div>
+              {analysisResult.triage?.downstream_skipped ? (
+                <span className="px-2 py-0.5 rounded-xs text-[10px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-500/40">
+                  STAGE-1 TRIAGE: CLEAN SEABED CONFIRMED ({((analysisResult.triage.clean_prob || 0) * 100).toFixed(1)}%) — BYPASS
+                </span>
+              ) : analysisResult.triage?.anomaly_detected ? (
+                <span className="px-2 py-0.5 rounded-xs text-[10px] font-semibold bg-red-950/80 text-red-300 border border-red-500/40">
+                  STAGE-1 TRIAGE: ANOMALY TRIGGERED ({((analysisResult.triage.anomaly_prob || 0) * 100).toFixed(1)}%) — FULL SCAN
+                </span>
+              ) : analysisResult.triage ? (
+                <span className="px-2 py-0.5 rounded-xs text-[10px] font-semibold bg-amber-950/80 text-amber-300 border border-amber-500/40">
+                  STAGE-1 TRIAGE: UNCERTAIN SWATH ({((analysisResult.triage.clean_prob || 0) * 100).toFixed(1)}% &lt; τ) — FULL SCAN
+                </span>
+              ) : null}
             </div>
-            <span className="text-[10px] text-[#50637c] hidden sm:inline">
+            <span className="text-[10px] text-[#50637c] shrink-0">
               EXEC TIME: {analysisResult.summary?.execution_time_ms ? `${analysisResult.summary.execution_time_ms} ms` : 'COMPLETED'}
             </span>
           </div>
@@ -421,6 +436,11 @@ export default function DetectionsView({
                       <span className="text-[#8ea4bf]">{det.className}</span>
                       <span className="text-[#33465e]">|</span>
                       <span className="text-[#f1f5f9]">{det.confidence}%</span>
+                      {det.competing_hypotheses && det.competing_hypotheses.length > 0 && (
+                        <span className="text-amber-400 font-bold ml-0.5 text-[8px]" title={`${det.competing_hypotheses.length} alternative model prediction(s)`}>
+                          +{det.competing_hypotheses.length}
+                        </span>
+                      )}
                     </div>
 
                     {det.shadowLength && (
@@ -474,20 +494,36 @@ export default function DetectionsView({
                   </div>
                 ) : detections.length === 0 ? (
                   <div className="py-10 px-3 text-center space-y-2 font-mono text-xs">
-                    <CheckCircle2 className="w-5 h-5 text-primary mx-auto opacity-75" />
-                    <p className="text-on-surface font-semibold uppercase">No Objects Detected</p>
+                    <CheckCircle2 className={`w-5 h-5 mx-auto ${analysisResult?.triage?.downstream_skipped ? 'text-emerald-400' : 'text-primary opacity-75'}`} />
+                    <p className="text-on-surface font-semibold uppercase">
+                      {analysisResult?.triage?.downstream_skipped ? 'Clean Seabed Certified' : 'No Objects Detected'}
+                    </p>
                     <p className="font-sans text-[11px] text-[#8ea4bf] leading-relaxed">
-                      No objects met the {confidenceCutoff}% confidence cutoff in this swath.
+                      {analysisResult?.triage?.downstream_skipped
+                        ? `Stage-1 Seabed Classifier verified natural seabed with ${((analysisResult.triage.clean_prob || 0) * 100).toFixed(1)}% confidence (≥ ${(analysisResult.triage.threshold_applied * 100).toFixed(0)}% cutoff). Downstream object detectors were bypassed.`
+                        : `No candidate targets met the ${confidenceCutoff}% confidence cutoff in this swath.`}
                     </p>
                     {onRunAnalysis && surveyFile && (
-                      <button
-                        onClick={() => handleTriggerReanalysis(15)}
-                        disabled={isAnalyzing}
-                        className="mt-2 px-3 py-1.5 bg-[#101b2c] hover:bg-primary/20 border border-[#22354e] hover:border-primary text-primary text-[10px] rounded-xs font-semibold cursor-pointer transition-colors inline-flex items-center space-x-1.5"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        <span>Lower Cutoff to 15% & Re-Scan</span>
-                      </button>
+                      <div className="pt-2 flex flex-col items-center gap-1.5">
+                        {analysisResult?.triage?.downstream_skipped && (
+                          <button
+                            onClick={() => onRunAnalysis(surveyFile, { enable_seabed_gate: false, confidence: confidenceCutoff / 100 })}
+                            disabled={isAnalyzing}
+                            className="w-full px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-[10px] rounded-xs font-semibold cursor-pointer transition-colors inline-flex items-center justify-center space-x-1.5"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            <span>Force Full Multi-Model Scan (Bypass Triage)</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleTriggerReanalysis(15)}
+                          disabled={isAnalyzing}
+                          className="w-full px-3 py-1.5 bg-[#101b2c] hover:bg-primary/20 border border-[#22354e] hover:border-primary text-primary text-[10px] rounded-xs font-semibold cursor-pointer transition-colors inline-flex items-center justify-center space-x-1.5"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          <span>Lower Cutoff to 15% & Re-Scan</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -549,6 +585,24 @@ export default function DetectionsView({
                           <p className="font-sans text-[11px] text-[#64748b] font-normal mt-1 line-clamp-1">
                             {det.acousticFeature}
                           </p>
+                        )}
+
+                        {/* Multi-Model Overlapping Hypotheses */}
+                        {det.competing_hypotheses && det.competing_hypotheses.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-[#1a2638] space-y-1">
+                            <div className="flex items-center space-x-1 text-[9px] font-semibold text-amber-300">
+                              <Layers className="w-2.5 h-2.5 text-amber-400" />
+                              <span>ALTERNATIVE HYPOTHESES ({det.competing_hypotheses.length})</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              {det.competing_hypotheses.map((alt, hIdx) => (
+                                <div key={hIdx} className="flex justify-between items-center bg-[#05080f] px-1.5 py-0.5 rounded border border-[#162234] text-[9px]">
+                                  <span className="text-[#94a3b8] truncate">{alt.display_class}</span>
+                                  <span className="text-primary font-bold">{alt.confidence_percent || Math.round(alt.confidence * 100)}% <span className="text-[#64748b] uppercase">({alt.model})</span></span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         )}
                       </div>
                     );

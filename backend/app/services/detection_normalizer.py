@@ -6,6 +6,7 @@ calculates bounding box geometries, and computes survey summary statistics.
 
 from typing import Any, Dict, List, Optional, Tuple
 from app.schemas.analysis import (
+    AlternativeHypothesis,
     AnalysisBoundingBox,
     AnalysisDetection,
     AnalysisGeolocation,
@@ -119,37 +120,58 @@ def calculate_iou(box1: Any, box2: Any) -> float:
 
 def deduplicate_cross_model_detections(
     detections: List[DetectionResult],
-    iou_threshold: float = 0.50,
+    iou_threshold: float = 0.45,
 ) -> List[DetectionResult]:
-    """Conservative cross-model deduplication for overlapping models.
+    """Cross-model spatial deduplication with multi-hypothesis candidate retention.
 
     Rules applied:
-    - Never delete a detection solely because two models use the same class name.
-    - Compare spatial bbox overlap (IoU) AND matching normalized semantic class/category.
-    - Preserve the highest-confidence detection when two detections are clearly the same object.
-    - Preserve detections from different classes even if overlapping.
-    - Do not merge detections without sufficient spatial overlap (IoU < iou_threshold).
-    - Maintain model provenance on each preserved detection.
+    - Compare spatial bbox overlap (IoU) across all candidate detections.
+    - When two or more models predict overlapping boxes on the same physical contact (IoU >= iou_threshold):
+      1. Sort candidates by operational score: confidence + slight priority bonus for defense targets.
+      2. Preserve the winning detection with higher confidence as the primary contact on the canvas.
+      3. Retain the secondary/competing detections from overlapping models as `competing_hypotheses`
+         attached directly to the primary winner.
+    - Zero loss of intelligence: operators see a clean unified box on the canvas, with all competing
+      model classifications accessible in the inspection drawer.
     """
     if len(detections) <= 1:
         return detections
 
-    sorted_dets = sorted(detections, key=lambda d: d.confidence, reverse=True)
+    # Score function: confidence + operational safety bias to break near-ties in favor of higher risk
+    def priority_score(d: DetectionResult) -> float:
+        p_rank, _ = determine_detection_priority(d.raw_class_name)
+        weight = 0.05 if p_rank == "HIGH" else (0.02 if p_rank == "MEDIUM" else 0.0)
+        return float(d.confidence) + weight
+
+    sorted_dets = sorted(detections, key=priority_score, reverse=True)
     kept: List[DetectionResult] = []
 
     for cand in sorted_dets:
-        cand_cat = get_category_name(cand.raw_class_name)
-        is_duplicate = False
-
+        matched_primary = None
         for existing in kept:
-            exist_cat = get_category_name(existing.raw_class_name)
-            if cand_cat == exist_cat:
-                iou = calculate_iou(cand.bounding_box, existing.bounding_box)
-                if iou >= iou_threshold:
-                    is_duplicate = True
-                    break
+            iou = calculate_iou(cand.bounding_box, existing.bounding_box)
+            if iou >= iou_threshold:
+                matched_primary = existing
+                break
 
-        if not is_duplicate:
+        if matched_primary is not None:
+            # Overlapping detection on same contact: record as competing alternative hypothesis
+            cand_priority, _ = determine_detection_priority(cand.raw_class_name)
+            alt = {
+                "model": cand.model_name,
+                "raw_class": cand.raw_class_name,
+                "display_class": normalize_class_name(cand.raw_class_name),
+                "category": get_category_name(cand.raw_class_name),
+                "confidence": round(float(cand.confidence), 4),
+                "confidence_percent": round(float(cand.confidence) * 100.0, 1),
+                "priority": cand_priority,
+            }
+            if not hasattr(matched_primary, "competing_hypotheses") or matched_primary.competing_hypotheses is None:
+                matched_primary.competing_hypotheses = []
+            matched_primary.competing_hypotheses.append(alt)
+        else:
+            if not hasattr(cand, "competing_hypotheses") or cand.competing_hypotheses is None:
+                cand.competing_hypotheses = []
             kept.append(cand)
 
     return kept
@@ -238,6 +260,14 @@ def build_analysis_detection(
         evidence_status=ev_status,
     )
 
+    alt_hypotheses: List[AlternativeHypothesis] = []
+    if hasattr(actual_result, "competing_hypotheses") and actual_result.competing_hypotheses:
+        for alt_item in actual_result.competing_hypotheses:
+            if isinstance(alt_item, AlternativeHypothesis):
+                alt_hypotheses.append(alt_item)
+            elif isinstance(alt_item, dict):
+                alt_hypotheses.append(AlternativeHypothesis(**alt_item))
+
     return AnalysisDetection(
         id=det_id,
         code=code,
@@ -246,6 +276,7 @@ def build_analysis_detection(
         raw_class=actual_result.raw_class_name,
         display_class=display_class,
         category=category,
+        competing_hypotheses=alt_hypotheses,
         className=display_class.upper(),
         type=display_class,
         status="PENDING REVIEW",

@@ -25,6 +25,7 @@ from app.schemas.inference import (
     BoundingBox,
     DetectionResult,
     InferenceResponse,
+    TriageClassificationResult,
 )
 from app.services.model_loader import load_model
 
@@ -314,6 +315,82 @@ class InferenceService:
             return None
 
     @staticmethod
+    def classify_seabed(
+        image: Union[np.ndarray, Image.Image, str, Path],
+        clean_threshold: float = 0.92,
+    ) -> TriageClassificationResult:
+        """Execute Natural Seabed classification and uncertainty triage on a sonar image swath.
+
+        Args:
+            image: Sonar image input.
+            clean_threshold: Probability threshold above which the swath is conclusively clean seabed.
+                            Default: 0.92.
+
+        Returns:
+            TriageClassificationResult with probabilities, classification decision, and bypass recommendations.
+        """
+        definition = get_model_definition("natural_seabed")
+        img_for_yolo, _, _ = _normalize_image_input(image)
+        model = load_model(definition.key)
+
+        start_time = time.perf_counter()
+        with torch.inference_mode():
+            results = model.predict(
+                source=img_for_yolo,
+                imgsz=definition.input_size[0],
+                verbose=False,
+            )
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+
+        p_clean = 0.50
+        p_anomaly = 0.50
+        if results and len(results) > 0 and hasattr(results[0], "probs") and results[0].probs is not None:
+            probs = results[0].probs.data.cpu().numpy().tolist()
+            if len(probs) >= 2:
+                p_clean = float(probs[0])
+                p_anomaly = float(probs[1])
+
+        # Decision rule:
+        # 1. P(clean) >= clean_threshold: Conclusively natural seabed -> BYPASS downstream detectors
+        # 2. P(clean) < 0.50 (i.e. P(anomaly) >= 0.50): Confirmed anomaly -> ANOMALY_TRIGGERED
+        # 3. 0.50 <= P(clean) < clean_threshold: Unsure / marginal -> UNSURE_FORWARDED (fall forward to detectors)
+        if p_clean >= clean_threshold:
+            decision = "BYPASS_CLEAN"
+            is_clean = True
+            anomaly_suspected = False
+            is_uncertain = False
+            downstream_skipped = True
+            predicted_class = "clean_seabed"
+        elif p_anomaly >= 0.50:
+            decision = "ANOMALY_TRIGGERED"
+            is_clean = False
+            anomaly_suspected = True
+            is_uncertain = False
+            downstream_skipped = False
+            predicted_class = "debris_anomaly"
+        else:
+            decision = "UNSURE_FORWARDED"
+            is_clean = False
+            anomaly_suspected = False
+            is_uncertain = True
+            downstream_skipped = False
+            predicted_class = "debris_anomaly"
+
+        return TriageClassificationResult(
+            model_name="natural_seabed",
+            predicted_class=predicted_class,
+            is_clean=is_clean,
+            anomaly_suspected=anomaly_suspected,
+            is_uncertain=is_uncertain,
+            clean_probability=round(p_clean, 4),
+            anomaly_probability=round(p_anomaly, 4),
+            decision=decision,
+            threshold_used=float(clean_threshold),
+            downstream_skipped=downstream_skipped,
+            inference_time_ms=round(elapsed_ms, 2),
+        )
+
+    @staticmethod
     def predict(
         name_or_key: str,
         image: Union[np.ndarray, Image.Image, str, Path],
@@ -336,6 +413,22 @@ class InferenceService:
         conf_threshold = confidence if confidence is not None else definition.default_conf
         iou_threshold = iou if iou is not None else definition.default_iou
 
+        img_for_yolo, img_width, img_height = _normalize_image_input(image)
+
+        # Handle classification tasks directly
+        if definition.task == "classify":
+            triage_res = InferenceService.classify_seabed(image=img_for_yolo, clean_threshold=conf_threshold)
+            return InferenceResponse(
+                model_name=definition.key,
+                model_architecture=definition.architecture,
+                detections_count=0,
+                detections=[],
+                image_width=img_width,
+                image_height=img_height,
+                inference_time_ms=triage_res.inference_time_ms,
+                triage=triage_res.model_dump(),
+            )
+
         # 1. First priority: Remote GPU-accelerated ZeroGPU inference
         if settings.USE_REMOTE_INFERENCE and settings.HF_SPACE_ID:
             remote_resp = InferenceService._try_predict_remote(
@@ -349,7 +442,6 @@ class InferenceService:
 
         # 2. Local execution fallback
         model = load_model(definition.key)
-        img_for_yolo, img_width, img_height = _normalize_image_input(image)
 
         # Native resolution required by this specific model (e.g. 1536 for Cylinder, 640 for others)
         native_imgsz = definition.input_size[0]

@@ -360,21 +360,26 @@ def test_model_selection_subset():
     response = client.post("/api/v1/analysis/analyze", files=files, data=data)
     assert response.status_code == 200
     models_run = response.json()["summary"]["models_executed"]
-    assert models_run == ["ghostvision", "subpipes"]
+    assert "ghostvision" in models_run
+    assert "subpipes" in models_run
 
 
 # =========================================================================
-# M. Natural Seabed Remains Unavailable
+# M. Natural Seabed Is Available & Executes Stage 1 Triage
 # =========================================================================
 
-def test_natural_seabed_remains_unavailable():
-    """Verify requesting Natural Seabed model returns HTTP 400 and clear explanation."""
+def test_natural_seabed_available_and_executes():
+    """Verify requesting Natural Seabed model returns HTTP 200 and performs triage."""
     img_bytes = _make_dummy_sonar_bytes()
     files = {"image": ("test_seabed.png", img_bytes, "image/png")}
     data = {"selected_models": "natural_seabed"}
     response = client.post("/api/v1/analysis/analyze", files=files, data=data)
-    assert response.status_code == 400
-    assert "Natural Seabed" in response.json()["detail"]
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    assert data["triage"] is not None
+    assert "clean_probability" in data["triage"]
+    assert "natural_seabed" in data["summary"]["models_executed"]
 
 
 # =========================================================================

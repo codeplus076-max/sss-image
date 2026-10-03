@@ -136,6 +136,12 @@ def analyze_sonar_survey(
     iou: Optional[Union[float, str]] = Form(
         None, description="Optional NMS IoU threshold [0.0 - 1.0]."
     ),
+    enable_seabed_gate: Optional[Union[bool, str]] = Form(
+        True, description="Enable Stage 1 natural seabed classification gate."
+    ),
+    seabed_clean_threshold: Optional[Union[float, str]] = Form(
+        0.92, description="Clean seabed probability threshold [0.50 - 0.99] to bypass Stage 2 detectors."
+    ),
     db: Session = Depends(get_db),
 ) -> Union[AnalysisResponse, JSONResponse]:
     """Analyze a sonar image through the end-to-end multi-model pipeline and persist results."""
@@ -147,6 +153,19 @@ def analyze_sonar_survey(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Confidence threshold must be between 0.0 and 1.0.",
         )
+
+    gate_val = True
+    if enable_seabed_gate is not None:
+        if isinstance(enable_seabed_gate, bool):
+            gate_val = enable_seabed_gate
+        elif isinstance(enable_seabed_gate, str):
+            gate_val = enable_seabed_gate.strip().lower() not in ("false", "0", "no", "off")
+
+    clean_thresh_val = _parse_float(seabed_clean_threshold, "Seabed clean threshold")
+    if clean_thresh_val is None:
+        clean_thresh_val = 0.92
+    elif not (0.50 <= clean_thresh_val <= 0.99):
+        clean_thresh_val = max(0.50, min(0.99, clean_thresh_val))
 
     iou_val = _parse_float(iou, "IoU threshold")
     if iou_val is not None and not (0.0 <= iou_val <= 1.0):
@@ -248,6 +267,8 @@ def analyze_sonar_survey(
             geolocation=geolocation,
             confidence=conf_val,
             iou=iou_val,
+            enable_seabed_gate=gate_val,
+            seabed_clean_threshold=clean_thresh_val,
         )
     except UnsupportedFormatError as e:
         raise HTTPException(
@@ -303,6 +324,8 @@ def _run_async_analysis_pipeline(
     geolocation: AnalysisGeolocation,
     confidence: Optional[float],
     iou: Optional[float],
+    enable_seabed_gate: bool = True,
+    seabed_clean_threshold: float = 0.92,
 ):
     """Background task worker for asynchronous analysis job."""
     from app.db.session import SessionLocal
@@ -330,6 +353,8 @@ def _run_async_analysis_pipeline(
             geolocation=geolocation,
             confidence=confidence,
             iou=iou,
+            enable_seabed_gate=enable_seabed_gate,
+            seabed_clean_threshold=seabed_clean_threshold,
             progress_callback=_on_progress,
         )
 
@@ -371,6 +396,12 @@ async def submit_analysis_job(
     timestamp: Optional[str] = Form(None),
     confidence: Optional[Union[float, str]] = Form(None),
     iou: Optional[Union[float, str]] = Form(None),
+    enable_seabed_gate: Optional[Union[bool, str]] = Form(
+        True, description="Enable Stage 1 natural seabed classification gate."
+    ),
+    seabed_clean_threshold: Optional[Union[float, str]] = Form(
+        0.92, description="Clean seabed probability threshold [0.50 - 0.99] to bypass Stage 2 detectors."
+    ),
 ) -> JobSubmissionResponse:
     """Submit a survey image for non-blocking asynchronous analysis."""
     # 1. Parameter Type & Range Validations
@@ -380,6 +411,19 @@ async def submit_analysis_job(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Confidence threshold must be between 0.0 and 1.0.",
         )
+
+    gate_val = True
+    if enable_seabed_gate is not None:
+        if isinstance(enable_seabed_gate, bool):
+            gate_val = enable_seabed_gate
+        elif isinstance(enable_seabed_gate, str):
+            gate_val = enable_seabed_gate.strip().lower() not in ("false", "0", "no", "off")
+
+    clean_thresh_val = _parse_float(seabed_clean_threshold, "Seabed clean threshold")
+    if clean_thresh_val is None:
+        clean_thresh_val = 0.92
+    elif not (0.50 <= clean_thresh_val <= 0.99):
+        clean_thresh_val = max(0.50, min(0.99, clean_thresh_val))
 
     iou_val = _parse_float(iou, "IoU threshold")
     if iou_val is not None and not (0.0 <= iou_val <= 1.0):
@@ -461,6 +505,8 @@ async def submit_analysis_job(
         geolocation=geolocation,
         confidence=conf_val,
         iou=iou_val,
+        enable_seabed_gate=gate_val,
+        seabed_clean_threshold=clean_thresh_val,
     )
 
     return JobSubmissionResponse(

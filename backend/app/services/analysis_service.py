@@ -5,9 +5,12 @@ class normalization, and statistical summary generation.
 """
 
 import gc
+import logging
 import time
 import uuid
 from typing import Any, List, Optional
+
+logger = logging.getLogger(__name__)
 from app.core.model_registry import (
     MODEL_REGISTRY,
     ModelDefinition,
@@ -61,11 +64,6 @@ def resolve_analysis_models(selected_models: Optional[List[str]]) -> List[ModelD
 
     for model_name in flattened:
         clean = model_name.lower().strip()
-        if clean in ("natural_seabed", "naturalseabed", "seabed"):
-            raise ModelUnavailableError(
-                "The Natural Seabed model is currently unavailable in the repository."
-            )
-
         try:
             m_def = get_model_definition(clean)
             if m_def.key not in seen_keys:
@@ -89,6 +87,8 @@ class AnalysisService:
         geolocation: Optional[AnalysisGeolocation] = None,
         confidence: Optional[float] = None,
         iou: Optional[float] = None,
+        enable_seabed_gate: bool = True,
+        seabed_clean_threshold: float = 0.92,
         progress_callback: Optional[Any] = None,
     ) -> AnalysisResponse:
         """Run complete analysis pipeline on an uploaded sonar image."""
@@ -106,48 +106,92 @@ class AnalysisService:
 
         # 2. Resolve Target Models
         target_models: List[ModelDefinition] = resolve_analysis_models(selected_models)
-        executed_keys = [m.key for m in target_models]
-        total_models = max(1, len(target_models))
+        target_keys = [m.key for m in target_models]
 
-        # 3. Multi-Model Inference Execution
+        # 3. Two-Stage Pipeline: Stage 1 Seabed Triage Gate
+        captured_triage = None
+        bypass_downstream = False
+        triage_model_key = "natural_seabed"
+
+        only_seabed_requested = (len(target_models) == 1 and target_models[0].key == triage_model_key)
+
+        if enable_seabed_gate or only_seabed_requested:
+            if progress_callback:
+                progress_callback(0.18, "Executing Stage 1: Natural Seabed classification & anomaly screening...")
+            try:
+                triage_res = inference_service.classify_seabed(
+                    image=preprocessed.np_array,
+                    clean_threshold=seabed_clean_threshold,
+                )
+                captured_triage = triage_res.model_dump()
+                if triage_res.downstream_skipped and not only_seabed_requested:
+                    bypass_downstream = True
+                    logger.info(
+                        f"[Stage 1 Triage] Verified Clean Seabed (P_clean={triage_res.clean_probability:.4f} >= {seabed_clean_threshold}). "
+                        f"Bypassing downstream detectors."
+                    )
+                else:
+                    logger.info(
+                        f"[Stage 1 Triage] Triage complete: decision={triage_res.decision}, "
+                        f"P_clean={triage_res.clean_probability:.4f}, P_anomaly={triage_res.anomaly_probability:.4f}"
+                    )
+            except Exception as e:
+                logger.warning(f"Stage 1 seabed triage failed, falling forward to Stage 2: {e}")
+
+        # 4. Multi-Model Inference Execution (Stage 2)
         raw_detections = []
         models_failed = 0
-        captured_triage = None
+        executed_keys = []
 
-        # Fast path: execute all models in a single remote ZeroGPU cloud pass (~2-3s instead of 60s)
-        remote_batch = inference_service.try_predict_all_remote(
-            target_models=target_models,
-            image=preprocessed.np_array,
-            confidence=confidence if confidence is not None else 0.25,
-        )
-        if remote_batch is not None:
-            raw_detections, captured_triage = remote_batch
+        if captured_triage is not None:
+            executed_keys.append(triage_model_key)
+
+        if bypass_downstream or only_seabed_requested:
+            # Conclusively clean seabed or only seabed model requested -> skip specialized detectors
             if progress_callback:
-                progress_callback(0.85, f"Remote ZeroGPU inference complete ({len(raw_detections)} contacts)")
+                progress_callback(0.85, "Clean seabed confirmed. Downstream detector execution bypassed.")
         else:
-            # Fallback path: sequential local execution
-            for idx, model_def in enumerate(target_models):
-                if progress_callback:
-                    p_fraction = 0.20 + (0.65 * (idx / total_models))
-                    progress_callback(p_fraction, f"Running {model_def.name} ({idx + 1}/{total_models})...")
+            # Filter out natural_seabed from Stage 2 detector models since it was already run
+            detector_models = [m for m in target_models if m.key != triage_model_key]
+            total_models = max(1, len(detector_models))
+            executed_keys.extend([m.key for m in detector_models])
 
-                try:
-                    inf_resp = inference_service.predict(
-                        name_or_key=model_def.key,
-                        image=preprocessed.np_array,
-                        confidence=confidence,
-                        iou=iou,
-                    )
-                    if getattr(inf_resp, "triage", None) and not captured_triage:
-                        captured_triage = inf_resp.triage
-                    raw_detections.extend(inf_resp.detections)
-                except Exception as e:
-                    models_failed += 1
-                    logger.warning(f"Inference error on model '{model_def.key}': {e}", exc_info=True)
-                finally:
-                    if len(target_models) > 1:
-                        unload_model(model_def.key)
-                gc.collect()
+            # Fast path: execute all detector models in a single remote ZeroGPU cloud pass (~2-3s instead of 60s)
+            remote_batch = inference_service.try_predict_all_remote(
+                target_models=detector_models,
+                image=preprocessed.np_array,
+                confidence=confidence if confidence is not None else 0.25,
+            )
+            if remote_batch is not None:
+                raw_detections, remote_triage = remote_batch
+                if remote_triage and not captured_triage:
+                    captured_triage = remote_triage
+                if progress_callback:
+                    progress_callback(0.85, f"Remote ZeroGPU inference complete ({len(raw_detections)} contacts)")
+            else:
+                # Fallback path: sequential local execution
+                for idx, model_def in enumerate(detector_models):
+                    if progress_callback:
+                        p_fraction = 0.20 + (0.65 * (idx / total_models))
+                        progress_callback(p_fraction, f"Running {model_def.name} ({idx + 1}/{total_models})...")
+
+                    try:
+                        inf_resp = inference_service.predict(
+                            name_or_key=model_def.key,
+                            image=preprocessed.np_array,
+                            confidence=confidence,
+                            iou=iou,
+                        )
+                        if getattr(inf_resp, "triage", None) and not captured_triage:
+                            captured_triage = inf_resp.triage
+                        raw_detections.extend(inf_resp.detections)
+                    except Exception as e:
+                        models_failed += 1
+                        logger.warning(f"Inference error on model '{model_def.key}': {e}", exc_info=True)
+                    finally:
+                        if len(detector_models) > 1:
+                            unload_model(model_def.key)
+                    gc.collect()
 
         # If and only if all models crashed/failed due to server memory or environmental constraints,
         # provide fallback acoustic contrast candidates labeled accurately as acoustic anomalies.

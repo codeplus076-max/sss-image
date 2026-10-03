@@ -32,6 +32,6 @@ class ModelListResponse(BaseModel):
     models: List[ModelDetail] = Field(default_factory=list, description="List of registered detection models")
     total: int = Field(..., description="Total number of registered models")
     unavailable_models: List[str] = Field(
-        default_factory=lambda: ["natural_seabed"],
+        default_factory=list,
         description="Models currently pending training or unavailable",
     )

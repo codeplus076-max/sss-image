@@ -32,6 +32,25 @@ class DetectionResult(BaseModel):
     bounding_box: BoundingBox = Field(..., description="Bounding box geometry")
     image_width: int = Field(..., description="Width of the analyzed image in pixels")
     image_height: int = Field(..., description="Height of the analyzed image in pixels")
+    competing_hypotheses: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Alternative candidate predictions from overlapping models for this contact"
+    )
+
+
+class TriageClassificationResult(BaseModel):
+    """Normalized classification and triage output from Natural Seabed classifier."""
+    model_name: str = Field(default="natural_seabed", description="Triage model identifier")
+    predicted_class: str = Field(..., description="'clean_seabed' or 'debris_anomaly'")
+    is_clean: bool = Field(..., description="True if classified as clean natural seabed")
+    anomaly_suspected: bool = Field(..., description="True if anomaly or debris is suspected")
+    is_uncertain: bool = Field(default=False, description="True if confidence did not meet clean threshold")
+    clean_probability: float = Field(..., description="Softmax probability of clean seabed [0.0 - 1.0]")
+    anomaly_probability: float = Field(..., description="Softmax probability of anomaly/debris [0.0 - 1.0]")
+    decision: str = Field(..., description="'BYPASS_CLEAN', 'ANOMALY_TRIGGERED', or 'UNSURE_FORWARDED'")
+    threshold_used: float = Field(..., description="Uncertainty gate threshold applied")
+    downstream_skipped: bool = Field(..., description="True if specialized object detectors were bypassed")
+    inference_time_ms: float = Field(..., description="Classification latency in milliseconds")
 
 
 class InferenceResponse(BaseModel):

@@ -30,12 +30,28 @@ SessionLocal = sessionmaker(
 
 
 def init_db() -> None:
-    """Initialize database tables for current models."""
+    """Initialize database tables for current models and perform light auto-migrations."""
     try:
         # Import models so Base registers all mapped tables
         from app.models import db_models  # noqa: F401
+        from sqlalchemy import inspect, text
 
         Base.metadata.create_all(bind=engine)
+
+        # Auto-migrate missing columns for existing SQLite tables
+        with engine.connect() as conn:
+            inspector = inspect(engine)
+            if "analyses" in inspector.get_table_names():
+                cols = [c["name"] for c in inspector.get_columns("analyses")]
+                if "triage" not in cols:
+                    conn.execute(text("ALTER TABLE analyses ADD COLUMN triage JSON"))
+                    conn.commit()
+            if "detections" in inspector.get_table_names():
+                cols = [c["name"] for c in inspector.get_columns("detections")]
+                if "competing_hypotheses" not in cols:
+                    conn.execute(text("ALTER TABLE detections ADD COLUMN competing_hypotheses JSON DEFAULT '[]'"))
+                    conn.commit()
+
         logger.info("Database tables initialized successfully.")
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")

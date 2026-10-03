@@ -19,7 +19,7 @@ def test_health_endpoint_success():
     assert data["models"]["mine"] == "available"
     assert data["models"]["shipwreck"] == "available"
     assert data["models"]["subpipe"] == "available"
-    assert data["models"]["natural_seabed"] == "unavailable"
+    assert data["models"]["natural_seabed"] == "available"
 
 
 def test_root_endpoint():

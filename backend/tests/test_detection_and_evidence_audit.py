@@ -315,14 +315,16 @@ def test_overlapping_milco_deduplication():
     )
 
     deduped = deduplicate_cross_model_detections([det_mines, det_shipwreck, det_other])
-    # The duplicate MILCO with lower confidence (0.70) is pruned; higher confidence (0.85) is kept.
-    # The different class (Shipwreck) is preserved!
-    assert len(deduped) == 2
-    classes_kept = [d.raw_class_name for d in deduped]
-    assert classes_kept == ["MILCO", "Shipwreck"]
-    milco_det = [d for d in deduped if d.raw_class_name == "MILCO"][0]
-    assert milco_det.confidence == 0.85
-    assert milco_det.model_name == "mine_detector"
+    # Cross-model spatial clustering designates the highest-confidence prediction (0.85 MILCO)
+    # as the primary winner on canvas, preserving secondary overlapping predictions as competing hypotheses!
+    assert len(deduped) == 1
+    primary = deduped[0]
+    assert primary.confidence == 0.85
+    assert primary.model_name == "mine_detector"
+    assert primary.raw_class_name == "MILCO"
+    assert len(primary.competing_hypotheses) >= 1
+    competing_classes = [h.get("raw_class") or h.get("raw_class_name") for h in primary.competing_hypotheses]
+    assert "Shipwreck" in competing_classes or "MILCO" in competing_classes
 
 
 # 13. Multiple-model analysis
@@ -331,7 +333,7 @@ def test_multiple_model_analysis_execution():
     resp = client.post(
         "/api/v1/analysis/analyze",
         files={"image": ("multimodel.png", img_bytes, "image/png")},
-        data={"selected_models": "cylinder,ghostvision,subpipes"},
+        data={"selected_models": "cylinder,ghostvision,subpipes", "enable_seabed_gate": "false"},
     )
     assert resp.status_code == 200
     data = resp.json()
