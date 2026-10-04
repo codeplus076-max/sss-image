@@ -11,12 +11,94 @@ import {
   Database,
   Split,
   Image as ImageIcon,
-  Info
+  Info,
+  Tag,
+  Edit3,
+  Check
 } from 'lucide-react';
 import { soundFx } from '../../utils/audio';
 import MarineGisMap from '../gis/MarineGisMap';
 import { getFormattedDetections, MASTER_DETECTIONS } from '../../data/sharedDetections';
 import { API_BASE_URL } from '../../services/api';
+
+function SonarRoiCrop({ imageUrl, bbox, fallbackText }) {
+  const canvasRef = React.useRef(null);
+  const [hasDrawn, setHasDrawn] = useState(false);
+
+  useEffect(() => {
+    if (!imageUrl || !bbox) return;
+    let isCancelled = false;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = imageUrl;
+
+    img.onload = () => {
+      if (isCancelled) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = img.naturalWidth || 1000;
+      const h = img.naturalHeight || 500;
+
+      const bx = Number(bbox.x || 0);
+      const by = Number(bbox.y || 0);
+      const bw = Number(bbox.w || bbox.width || 10);
+      const bh = Number(bbox.h || bbox.height || 10);
+
+      const padX = Math.max(bw * 0.5, 4);
+      const padY = Math.max(bh * 0.5, 4);
+
+      const sx = Math.max(0, ((bx - padX) / 100) * w);
+      const sy = Math.max(0, ((by - padY) / 100) * h);
+      const sw = Math.min(w - sx, ((bw + 2 * padX) / 100) * w);
+      const sh = Math.min(h - sy, ((bh + 2 * padY) / 100) * h);
+
+      canvas.width = 320;
+      canvas.height = 140;
+
+      ctx.fillStyle = '#020509';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+      const retX = ((padX) / (bw + 2 * padX)) * canvas.width;
+      const retY = ((padY) / (bh + 2 * padY)) * canvas.height;
+      const retW = (bw / (bw + 2 * padX)) * canvas.width;
+      const retH = (bh / (bh + 2 * padY)) * canvas.height;
+
+      ctx.strokeStyle = '#2dd4bf';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(retX, retY, retW, retH);
+
+      setHasDrawn(true);
+    };
+
+    return () => { isCancelled = true; };
+  }, [imageUrl, bbox]);
+
+  return (
+    <div className="relative w-full h-24 bg-[#020509] border border-[#1a2638] rounded-sm overflow-hidden flex items-center justify-center">
+      <canvas ref={canvasRef} className={`w-full h-full object-contain ${hasDrawn ? 'block' : 'hidden'}`} />
+      {!hasDrawn && (
+        <div className="relative z-10 w-full flex items-center justify-between text-[10px] p-2.5">
+          <div className="space-y-0.5">
+            <span className="text-primary font-bold block">ACOUSTIC ROI TARGET</span>
+            <span className="text-[#8ea4bf] text-[9px] block max-w-[210px] truncate">
+              {fallbackText || 'Correlating sonar backscatter echo'}
+            </span>
+          </div>
+          <div className="w-8 h-8 border border-primary/60 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0 ml-2">
+            <Crosshair className="w-4 h-4 animate-pulse" />
+          </div>
+        </div>
+      )}
+      <div className="absolute top-1 left-1.5 px-1 py-0.2 bg-[#060911]/90 rounded border border-[#1a2638] text-[8px] font-mono text-primary z-10">
+        EVIDENCE ROI (SPECULAR ECHO & SHADOW)
+      </div>
+    </div>
+  );
+}
 
 export default function WorkspaceView({ 
   onNavigate,
@@ -24,7 +106,8 @@ export default function WorkspaceView({
   onSelectAnomaly,
   surveyFile,
   anomalies = [],
-  analysisResult = null
+  analysisResult = null,
+  onUpdateAnomaly
 }) {
   // Genuine navigation metadata detection: only true if surveyFile/backend provides navigation telemetry
   const hasNavigationMetadata = Boolean(
@@ -55,6 +138,38 @@ export default function WorkspaceView({
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  // Display Mode: 'contain' = Full Sonar Image (Uncropped), 'cover' = Fill Viewport
+  const [fitMode, setFitMode] = useState('contain');
+  const [imageAspect, setImageAspect] = useState(null);
+  const [isReclassifying, setIsReclassifying] = useState(false);
+
+  const handleReclassify = (detId, newClassName) => {
+    soundFx.playTargetLock();
+    const updatedFields = {
+      className: newClassName.toUpperCase(),
+      display_class: newClassName,
+      category: newClassName,
+      reviewStatus: 'VERIFIED BY OPERATOR',
+      status: 'VERIFIED'
+    };
+    setDetections(prev => prev.map(d => {
+      if (d.id === detId) {
+        return {
+          ...d,
+          ...updatedFields,
+          acousticFeature: `Reclassified to ${newClassName} by hydrographic operator (originally detected as ${d.className} with ${d.confidence}% confidence).`
+        };
+      }
+      return d;
+    }));
+    if (onUpdateAnomaly) {
+      onUpdateAnomaly(detId, updatedFields);
+    }
+    setIsReclassifying(false);
+    setDownloadToast(`Target reclassified to ${newClassName}`);
+    setTimeout(() => setDownloadToast(null), 3000);
+  };
 
   const [downloadToast, setDownloadToast] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
@@ -142,6 +257,7 @@ export default function WorkspaceView({
     soundFx.playSonarPing(1000, 0.2);
     setZoomLevel(1);
     setPanOffset({ x: 0, y: 0 });
+    setFitMode('contain');
   };
 
   // Export JSON Report
@@ -398,7 +514,29 @@ export default function WorkspaceView({
                   </span>
                 </div>
 
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    onClick={() => setFitMode('contain')}
+                    className={`px-2 py-0.5 rounded-sm font-mono text-[10px] border transition-colors cursor-pointer ${
+                      fitMode === 'contain'
+                        ? 'bg-primary/20 text-primary border-primary/50 font-bold'
+                        : 'bg-[#0b111e] text-[#8ea4bf] border-[#1a2638] hover:text-white'
+                    }`}
+                    title="Display full uncropped sonar swath (native aspect ratio)"
+                  >
+                    FIT FULL
+                  </button>
+                  <button
+                    onClick={() => setFitMode('cover')}
+                    className={`px-2 py-0.5 rounded-sm font-mono text-[10px] border transition-colors cursor-pointer ${
+                      fitMode === 'cover'
+                        ? 'bg-primary/20 text-primary border-primary/50 font-bold'
+                        : 'bg-[#0b111e] text-[#8ea4bf] border-[#1a2638] hover:text-white'
+                    }`}
+                    title="Fill viewport"
+                  >
+                    FILL
+                  </button>
                   <button onClick={handleZoomIn} title="Zoom In" className="p-1 hover:text-primary transition-colors cursor-pointer"><ZoomIn className="w-3.5 h-3.5" /></button>
                   <button onClick={handleZoomOut} title="Zoom Out" className="p-1 hover:text-primary transition-colors cursor-pointer"><ZoomOut className="w-3.5 h-3.5" /></button>
                   <button onClick={handleResetView} title="Reset Pan/Zoom" className="p-1 hover:text-primary transition-colors cursor-pointer"><RotateCcw className="w-3.5 h-3.5" /></button>
@@ -407,15 +545,20 @@ export default function WorkspaceView({
 
               {/* Viewport with Zoom and Pan */}
               <div
-                className="relative flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing bg-[#02050c]"
+                className="relative flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing bg-[#02050c] flex items-center justify-center p-0.5"
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
               >
                 <div
-                  className="absolute inset-0 transition-transform duration-75"
+                  className="relative transition-transform duration-75 flex items-center justify-center"
                   style={{
+                    width: fitMode === 'contain' ? (imageAspect ? (imageAspect >= 1 ? '100%' : `${imageAspect * 100}%`) : '100%') : '100%',
+                    height: '100%',
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    aspectRatio: fitMode === 'contain' && imageAspect ? `${imageAspect}` : undefined,
                     transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
                     transformOrigin: '50% 50%'
                   }}
@@ -433,7 +576,14 @@ export default function WorkspaceView({
                     <img 
                       src={imageUrl} 
                       alt="Side-Scan Sonar Swath" 
-                      className="absolute inset-0 w-full h-full object-cover opacity-85 contrast-125 pointer-events-none"
+                      onLoad={(e) => {
+                        if (e.target.naturalWidth && e.target.naturalHeight) {
+                          setImageAspect(e.target.naturalWidth / e.target.naturalHeight);
+                        }
+                      }}
+                      className={`w-full h-full pointer-events-none opacity-90 contrast-125 block ${
+                        fitMode === 'contain' ? 'object-contain' : 'object-cover'
+                      }`}
                       onError={(e) => {
                         if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
                           e.target.src = URL.createObjectURL(surveyFile);
@@ -445,7 +595,7 @@ export default function WorkspaceView({
                   )}
 
                   {/* Nadir Water Column */}
-                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-4 bg-[#010408] border-x border-[#1a2638] flex flex-col justify-between items-center py-2 font-mono text-[8px] text-[#50637c] pointer-events-none z-10">
+                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-4 bg-[#010408]/90 border-x border-[#1a2638] flex flex-col justify-between items-center py-2 font-mono text-[8px] text-[#50637c] pointer-events-none z-10">
                     <span>NADIR</span>
                     <span className="text-primary font-bold">0m</span>
                     <span>NADIR</span>
@@ -479,7 +629,7 @@ export default function WorkspaceView({
                             : 'border border-primary/40 hover:border-primary bg-transparent'
                         }`}
                       >
-                        <div className="absolute -top-5 left-0 flex items-center space-x-1 font-mono text-[9px] bg-[#060911]/95 px-1.5 py-0.2 rounded-sm border border-[#1a2638] text-on-surface whitespace-nowrap">
+                        <div className="absolute -top-5 left-0 flex items-center space-x-1 font-mono text-[9px] bg-[#060911]/95 px-1.5 py-0.2 rounded-sm border border-[#1a2638] text-on-surface whitespace-nowrap shadow-sm">
                           <span className="font-bold text-primary">{det.code}</span>
                           <span className="text-[#8ea4bf]">{det.className}</span>
                           <span className="text-[#33465e]">|</span>
@@ -503,6 +653,28 @@ export default function WorkspaceView({
                 <span className="text-[#f8fafc] text-xs font-semibold">ACOUSTIC SWATH · FULL RESOLUTION IMAGE SPACE</span>
               </div>
               <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => setFitMode('contain')}
+                  className={`px-2.5 py-0.5 rounded-sm font-mono text-xs border transition-colors cursor-pointer ${
+                    fitMode === 'contain'
+                      ? 'bg-primary/20 text-primary border-primary/50 font-bold'
+                      : 'bg-[#0b111e] text-[#8ea4bf] border-[#1a2638] hover:text-white'
+                  }`}
+                  title="Display full uncropped sonar swath (native aspect ratio)"
+                >
+                  FIT FULL SWATH
+                </button>
+                <button
+                  onClick={() => setFitMode('cover')}
+                  className={`px-2.5 py-0.5 rounded-sm font-mono text-xs border transition-colors cursor-pointer ${
+                    fitMode === 'cover'
+                      ? 'bg-primary/20 text-primary border-primary/50 font-bold'
+                      : 'bg-[#0b111e] text-[#8ea4bf] border-[#1a2638] hover:text-white'
+                  }`}
+                  title="Fill viewport"
+                >
+                  FILL
+                </button>
                 <button onClick={handleZoomIn} className="px-2 py-0.5 bg-[#0b111e] border border-[#1a2638] rounded-sm text-xs cursor-pointer">+</button>
                 <button onClick={handleZoomOut} className="px-2 py-0.5 bg-[#0b111e] border border-[#1a2638] rounded-sm text-xs cursor-pointer">-</button>
                 <button onClick={handleResetView} className="px-2 py-0.5 bg-[#0b111e] border border-[#1a2638] rounded-sm text-xs cursor-pointer">RESET</button>
@@ -510,15 +682,20 @@ export default function WorkspaceView({
             </div>
 
             <div
-              className="relative flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing bg-[#02050c]"
+              className="relative flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing bg-[#02050c] flex items-center justify-center p-1"
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
             >
               <div
-                className="absolute inset-0 transition-transform duration-75"
+                className="relative transition-transform duration-75 flex items-center justify-center"
                 style={{
+                  width: fitMode === 'contain' ? (imageAspect ? (imageAspect >= 1 ? '100%' : `${imageAspect * 100}%`) : '100%') : '100%',
+                  height: '100%',
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  aspectRatio: fitMode === 'contain' && imageAspect ? `${imageAspect}` : undefined,
                   transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
                   transformOrigin: '50% 50%'
                 }}
@@ -527,7 +704,14 @@ export default function WorkspaceView({
                   <img 
                     src={imageUrl} 
                     alt="Side-Scan Sonar Swath" 
-                    className="absolute inset-0 w-full h-full object-cover opacity-85 contrast-125 pointer-events-none"
+                    onLoad={(e) => {
+                      if (e.target.naturalWidth && e.target.naturalHeight) {
+                        setImageAspect(e.target.naturalWidth / e.target.naturalHeight);
+                      }
+                    }}
+                    className={`w-full h-full pointer-events-none opacity-90 contrast-125 block ${
+                      fitMode === 'contain' ? 'object-contain' : 'object-cover'
+                    }`}
                     onError={(e) => {
                       if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
                         e.target.src = URL.createObjectURL(surveyFile);
@@ -538,7 +722,7 @@ export default function WorkspaceView({
                   />
                 )}
                 {/* Nadir Water Column */}
-                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-5 bg-[#010408] border-x border-[#1a2638] flex flex-col justify-between items-center py-4 font-mono text-[9px] text-[#50637c] pointer-events-none z-10">
+                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-5 bg-[#010408]/90 border-x border-[#1a2638] flex flex-col justify-between items-center py-4 font-mono text-[9px] text-[#50637c] pointer-events-none z-10">
                   <span>NADIR</span>
                   <span className="text-primary font-bold">0m</span>
                   <span>NADIR</span>
@@ -562,7 +746,7 @@ export default function WorkspaceView({
                           : 'border border-primary/40 hover:border-primary bg-transparent'
                       }`}
                     >
-                      <div className="absolute -top-5 left-0 flex items-center space-x-1 font-mono text-[9px] bg-[#060911]/95 px-1.5 py-0.2 rounded-sm border border-[#1a2638] text-on-surface whitespace-nowrap">
+                      <div className="absolute -top-5 left-0 flex items-center space-x-1 font-mono text-[9px] bg-[#060911]/95 px-1.5 py-0.2 rounded-sm border border-[#1a2638] text-on-surface whitespace-nowrap shadow-md">
                         <span className="font-bold text-primary">{det.code}</span>
                         <span className="text-[#8ea4bf]">{det.className}</span>
                         <span className="text-[#33465e]">|</span>
@@ -611,18 +795,72 @@ export default function WorkspaceView({
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-primary block font-semibold">
-                      DETECTION #{activeDetection.code}
-                    </span>
-                    <h3 className="text-base font-bold text-on-surface">
-                      {activeDetection.className}
-                    </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-primary block font-semibold">
+                        DETECTION #{activeDetection.code}
+                      </span>
+                      <h3 className="text-base font-bold text-on-surface">
+                        {activeDetection.className}
+                      </h3>
+                    </div>
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        onClick={() => setIsReclassifying(!isReclassifying)}
+                        className={`px-2 py-0.5 rounded-sm text-[10px] font-semibold tracking-wider border cursor-pointer transition-colors flex items-center space-x-1 ${
+                          isReclassifying
+                            ? 'bg-primary text-black border-primary font-bold'
+                            : 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/40'
+                        }`}
+                        title="Reclassify target (e.g. from CYLINDER to SHIPWRECK)"
+                      >
+                        <Tag className="w-3 h-3" />
+                        <span>{isReclassifying ? 'CLOSE' : 'RECLASSIFY'}</span>
+                      </button>
+                      <span className={`px-2 py-0.5 rounded-sm text-[10px] font-semibold tracking-wider border ${
+                        activeDetection.reviewStatus === 'VERIFIED BY OPERATOR'
+                          ? 'bg-[#102a24] text-[#99f6e4] border-[#1b5e50]'
+                          : 'bg-[#101b2c] text-[#8ea4bf] border-[#22354e]'
+                      }`}>
+                        {activeDetection.reviewStatus || "PENDING REVIEW"}
+                      </span>
+                    </div>
                   </div>
-                  <span className="px-2 py-0.5 rounded-sm text-[10px] font-semibold tracking-wider border bg-[#101b2c] text-[#8ea4bf] border-[#22354e]">
-                    {activeDetection.reviewStatus || "PENDING REVIEW"}
-                  </span>
+
+                  {/* Reclassification Selection Grid */}
+                  {isReclassifying && (
+                    <div className="p-2.5 bg-[#070d18] border border-primary/40 rounded-sm space-y-2">
+                      <div className="flex items-center justify-between text-[10px] font-mono">
+                        <span className="text-primary font-bold">OPERATOR OVERRIDE:</span>
+                        <span className="text-[#64748b]">Select verified target class</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono">
+                        {[
+                          { label: 'SHIPWRECK / WRECK', val: 'SHIPWRECK' },
+                          { label: 'AVIATION WRECK', val: 'AVIATION WRECK' },
+                          { label: 'CYLINDER / DRUM', val: 'CYLINDER' },
+                          { label: 'SUBMARINE PIPELINE', val: 'PIPELINE' },
+                          { label: 'GHOST FISHING GEAR', val: 'GHOST GEAR' },
+                          { label: 'SEA MINE / UXO', val: 'MINE' },
+                          { label: 'NOMBO (NON-MINE)', val: 'NOMBO' },
+                          { label: 'GEOLOGY / BOULDER', val: 'GEOLOGY' }
+                        ].map((item) => (
+                          <button
+                            key={item.val}
+                            onClick={() => handleReclassify(activeDetection.id, item.val)}
+                            className={`px-2 py-1 text-left rounded-xs border transition-all cursor-pointer truncate ${
+                              activeDetection.className === item.val
+                                ? 'bg-primary/20 border-primary text-primary font-bold'
+                                : 'bg-[#0b1424] hover:bg-[#132238] border-[#1e2f47] text-[#94a3b8] hover:text-white'
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Strict Scientific Attribute Table */}
@@ -698,27 +936,12 @@ export default function WorkspaceView({
                   <span className="text-[10px] font-mono text-[#8ea4bf] block mb-1">
                     CORRELATED SONAR ROI (EVIDENCE CROP):
                   </span>
-                  <div className="relative h-20 bg-[#020509] border border-[#1a2638] rounded-sm overflow-hidden flex items-center justify-between p-2.5">
-                    <div 
-                      className="absolute inset-0 opacity-60 pointer-events-none"
-                  style={{
-                    backgroundImage: 'linear-gradient(to right, #020509 0%, #0c1a2f 50%, #020509 100%), repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent 2px, rgba(56, 189, 248, 0.15) 3px, transparent 4px)',
-                    backgroundSize: '100% 100%, 12px 12px'
-                  }}
-                />
-                <div className="relative z-10 w-full flex items-center justify-between text-[10px]">
-                  <div className="space-y-0.5">
-                    <span className="text-primary font-bold block">{activeDetection.id} · SPECULAR ECHO</span>
-                    <span className="text-[#8ea4bf] text-[9px] block max-w-[210px] truncate">
-                      {activeDetection.acousticFeature}
-                    </span>
-                  </div>
-                  <div className="w-10 h-10 border border-primary/60 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0 ml-2">
-                    <Crosshair className="w-5 h-5 animate-pulse" />
-                  </div>
+                  <SonarRoiCrop
+                    imageUrl={imageUrl}
+                    bbox={activeDetection.bbox}
+                    fallbackText={activeDetection.acousticFeature}
+                  />
                 </div>
-              </div>
-            </div>
           </>
         )}
       </div>

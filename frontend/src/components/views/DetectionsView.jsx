@@ -26,7 +26,8 @@ export default function DetectionsView({
   isAnalyzing = false,
   analysisError = null,
   onRunAnalysis,
-  evidenceUrl = null
+  evidenceUrl = null,
+  onUpdateAnomaly
 }) {
   const [detections, setDetections] = useState(() => (
     anomalies && anomalies.length > 0 ? anomalies : []
@@ -36,6 +37,9 @@ export default function DetectionsView({
   const [imageUrl, setImageUrl] = useState(null);
   const [confidenceCutoff, setConfidenceCutoff] = useState(20);
   const [targetModel, setTargetModel] = useState('all');
+  const [fitMode, setFitMode] = useState('contain');
+  const [imageAspect, setImageAspect] = useState(null);
+  const [reclassifyingId, setReclassifyingId] = useState(null);
 
   const handleTriggerReanalysis = (overrideConf) => {
     if (!onRunAnalysis || !surveyFile || isAnalyzing) return;
@@ -333,6 +337,32 @@ export default function DetectionsView({
                 ))}
               </div>
 
+              {/* Swath Fit Mode Toggle */}
+              <div className="flex items-center space-x-1 shrink-0">
+                <button
+                  onClick={() => setFitMode('contain')}
+                  className={`px-2 py-1 rounded-xs font-mono text-[10px] border transition-colors cursor-pointer ${
+                    fitMode === 'contain'
+                      ? 'bg-primary/20 text-primary border-primary/50 font-bold'
+                      : 'bg-[#0b111e] text-[#8ea4bf] border-[#162234] hover:text-white'
+                  }`}
+                  title="Display full uncropped sonar swath (native aspect ratio)"
+                >
+                  FIT FULL SWATH
+                </button>
+                <button
+                  onClick={() => setFitMode('cover')}
+                  className={`px-2 py-1 rounded-xs font-mono text-[10px] border transition-colors cursor-pointer ${
+                    fitMode === 'cover'
+                      ? 'bg-primary/20 text-primary border-primary/50 font-bold'
+                      : 'bg-[#0b111e] text-[#8ea4bf] border-[#162234] hover:text-white'
+                  }`}
+                  title="Fill viewport"
+                >
+                  FILL
+                </button>
+              </div>
+
               {/* Re-Scan Action Button */}
               {onRunAnalysis && surveyFile && (
                 <button
@@ -348,7 +378,7 @@ export default function DetectionsView({
             </div>
 
             {/* Sonar Viewport with Clean Scientific Bounding Boxes */}
-            <div className="relative h-[340px] sm:h-[420px] lg:h-[460px] bg-[#02050c] border-x border-b border-[#1a2638] rounded-b-sm overflow-hidden select-none">
+            <div className="relative h-[340px] sm:h-[420px] lg:h-[460px] bg-[#02050c] border-x border-b border-[#1a2638] rounded-b-sm overflow-hidden select-none flex items-center justify-center p-1">
               <div 
                 className="absolute inset-0 opacity-60 pointer-events-none"
                 style={{
@@ -357,100 +387,106 @@ export default function DetectionsView({
                 }}
               />
 
-              {imageUrl && (
-                <img 
-                  src={imageUrl} 
-                  alt="Side-Scan Sonar Swath" 
-                  className="absolute inset-0 w-full h-full object-cover opacity-85 contrast-125"
-                  onError={(e) => {
-                    if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
-                      e.target.src = URL.createObjectURL(surveyFile);
-                    } else {
-                      e.target.style.display = 'none';
-                    }
-                  }}
-                />
-              )}
-
-              {/* Inference Scanning Overlay */}
-              {isAnalyzing && (
-                <div className="absolute inset-0 bg-[#060911]/80 backdrop-blur-xs flex flex-col items-center justify-center space-y-3 z-30 font-mono text-xs">
-                  <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
-                  <span className="text-primary tracking-wider uppercase font-semibold">
-                    Running Multi-Model Inference...
-                  </span>
-                  <span className="text-[#8ea4bf] text-[11px] font-sans">
-                    Evaluating acoustic backscatter & resolving semantic classes
-                  </span>
-                </div>
-              )}
-
-              {/* Nadir Water Column Line */}
-              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-4 bg-[#010408] border-x border-[#1a2638] flex flex-col justify-between items-center py-2.5 font-mono text-[8px] text-[#50637c] pointer-events-none z-10">
-                <span>NADIR</span>
-                <span className="text-primary font-bold">0m</span>
-                <span>NADIR</span>
-              </div>
-
-              {/* Range Scale */}
-              <div className="absolute top-2 inset-x-4 flex justify-between font-mono text-[9px] text-[#50637c] pointer-events-none z-10">
-                <span>PORT (-75m)</span>
-                <span>STARBOARD (+75m)</span>
-              </div>
-
-              {/* Clean Scientific Bounding Boxes */}
-              {!isAnalyzing && detections.map((det) => {
-                const isSelected = det.id === selectedId;
-                const isHovered = det.id === hoveredId;
-                const box = det.box || det.bbox || { x: 0, y: 0, w: 0, h: 0 };
-
-                return (
-                  <div
-                    key={det.id}
-                    onClick={() => handleSelectDetection(det)}
-                    onMouseEnter={() => setHoveredId(det.id)}
-                    onMouseLeave={() => setHoveredId(null)}
-                    style={{
-                      left: `${box.x}%`,
-                      top: `${box.y}%`,
-                      width: `${box.w}%`,
-                      height: `${box.h}%`
+              {/* Aspect-Ratio-Preserving Swath Container */}
+              <div
+                className="relative transition-transform duration-75 flex items-center justify-center"
+                style={{
+                  width: fitMode === 'contain' ? (imageAspect ? (imageAspect >= 1 ? '100%' : `${imageAspect * 100}%`) : '100%') : '100%',
+                  height: '100%',
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  aspectRatio: fitMode === 'contain' && imageAspect ? `${imageAspect}` : undefined
+                }}
+              >
+                {imageUrl && (
+                  <img 
+                    src={imageUrl} 
+                    alt="Side-Scan Sonar Swath" 
+                    onLoad={(e) => {
+                      if (e.target.naturalWidth && e.target.naturalHeight) {
+                        setImageAspect(e.target.naturalWidth / e.target.naturalHeight);
+                      }
                     }}
-                    className={`absolute cursor-pointer transition-colors z-20 ${
-                      isSelected
-                        ? 'border border-primary bg-primary/10'
-                        : isHovered
-                          ? 'border border-[#2dd4bf]/80 bg-[#2dd4bf]/5'
-                          : 'border border-[#2dd4bf]/40 hover:border-primary bg-transparent'
+                    className={`w-full h-full pointer-events-none opacity-90 contrast-125 block ${
+                      fitMode === 'contain' ? 'object-contain' : 'object-cover'
                     }`}
-                  >
-                    {/* Corner Reticle Marks */}
-                    <div className="absolute -top-0.5 -left-0.5 w-1.5 h-1.5 border-t border-l border-primary pointer-events-none"></div>
-                    <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 border-t border-r border-primary pointer-events-none"></div>
-                    <div className="absolute -bottom-0.5 -left-0.5 w-1.5 h-1.5 border-b border-l border-primary pointer-events-none"></div>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 border-b border-r border-primary pointer-events-none"></div>
+                    onError={(e) => {
+                      if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
+                        e.target.src = URL.createObjectURL(surveyFile);
+                      } else {
+                        e.target.style.display = 'none';
+                      }
+                    }}
+                  />
+                )}
 
-                    {/* Scientific Identification Tag */}
-                    <div className="absolute -top-5 left-0 flex items-center space-x-1 font-mono text-[9px] bg-[#060911]/95 px-1.5 py-0.2 rounded-sm border border-[#1a2638] text-on-surface whitespace-nowrap shadow-sm">
-                      <span className="font-bold text-primary">{det.code}</span>
-                      <span className="text-[#8ea4bf]">{det.className}</span>
-                      <span className="text-[#33465e]">|</span>
-                      <span className="text-[#f1f5f9]">{det.confidence}%</span>
-                      {det.competing_hypotheses && det.competing_hypotheses.length > 0 && (
-                        <span className="text-amber-400 font-bold ml-0.5 text-[8px]" title={`${det.competing_hypotheses.length} alternative model prediction(s)`}>
-                          +{det.competing_hypotheses.length}
-                        </span>
+                {/* Nadir Water Column Line */}
+                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-4 bg-[#010408]/90 border-x border-[#1a2638] flex flex-col justify-between items-center py-2.5 font-mono text-[8px] text-[#50637c] pointer-events-none z-10">
+                  <span>NADIR</span>
+                  <span className="text-primary font-bold">0m</span>
+                  <span>NADIR</span>
+                </div>
+
+                {/* Range Scale */}
+                <div className="absolute top-2 inset-x-4 flex justify-between font-mono text-[9px] text-[#50637c] pointer-events-none z-10">
+                  <span>PORT (-75m)</span>
+                  <span>STARBOARD (+75m)</span>
+                </div>
+
+                {/* Clean Scientific Bounding Boxes */}
+                {!isAnalyzing && detections.map((det) => {
+                  const isSelected = det.id === selectedId;
+                  const isHovered = det.id === hoveredId;
+                  const box = det.box || det.bbox || { x: 0, y: 0, w: 0, h: 0 };
+
+                  return (
+                    <div
+                      key={det.id}
+                      onClick={() => handleSelectDetection(det)}
+                      onMouseEnter={() => setHoveredId(det.id)}
+                      onMouseLeave={() => setHoveredId(null)}
+                      style={{
+                        left: `${box.x}%`,
+                        top: `${box.y}%`,
+                        width: `${box.w}%`,
+                        height: `${box.h}%`
+                      }}
+                      className={`absolute cursor-pointer transition-colors z-20 ${
+                        isSelected
+                          ? 'border border-primary bg-primary/10 shadow-[0_0_10px_rgba(45,212,191,0.3)]'
+                          : isHovered
+                            ? 'border border-[#2dd4bf]/80 bg-[#2dd4bf]/5'
+                            : 'border border-[#2dd4bf]/40 hover:border-primary bg-transparent'
+                      }`}
+                    >
+                      {/* Corner Reticle Marks */}
+                      <div className="absolute -top-0.5 -left-0.5 w-1.5 h-1.5 border-t border-l border-primary pointer-events-none"></div>
+                      <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 border-t border-r border-primary pointer-events-none"></div>
+                      <div className="absolute -bottom-0.5 -left-0.5 w-1.5 h-1.5 border-b border-l border-primary pointer-events-none"></div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 border-b border-r border-primary pointer-events-none"></div>
+
+                      {/* Scientific Identification Tag */}
+                      <div className="absolute -top-5 left-0 flex items-center space-x-1 font-mono text-[9px] bg-[#060911]/95 px-1.5 py-0.2 rounded-sm border border-[#1a2638] text-on-surface whitespace-nowrap shadow-sm">
+                        <span className="font-bold text-primary">{det.code}</span>
+                        <span className="text-[#8ea4bf]">{det.className}</span>
+                        <span className="text-[#33465e]">|</span>
+                        <span className="text-[#f1f5f9]">{det.confidence}%</span>
+                        {det.competing_hypotheses && det.competing_hypotheses.length > 0 && (
+                          <span className="text-amber-400 font-bold ml-0.5 text-[8px]" title={`${det.competing_hypotheses.length} alternative model prediction(s)`}>
+                            +{det.competing_hypotheses.length}
+                          </span>
+                        )}
+                      </div>
+
+                      {det.shadowLength && (
+                        <div className="absolute right-0 bottom-0 text-[8px] font-mono text-[#50637c] bg-[#02050c]/90 px-1 pointer-events-none">
+                          SHADOW: {det.shadowLength}
+                        </div>
                       )}
                     </div>
-
-                    {det.shadowLength && (
-                      <div className="absolute right-0 bottom-0 text-[8px] font-mono text-[#50637c] bg-[#02050c]/90 px-1 pointer-events-none">
-                        SHADOW: {det.shadowLength}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
 
               <div className="absolute bottom-2 inset-x-6 flex justify-between font-mono text-[9px] text-[#50637c] pointer-events-none z-10 bg-gradient-to-t from-[#02050c]/95 to-transparent pt-3">
                 <span>-75m</span>

@@ -262,6 +262,16 @@ export default function App() {
     }
   }, []);
 
+  // Update Anomaly attribute (e.g. status or operator reclassification)
+  const handleUpdateAnomaly = useCallback((anomalyId, updates) => {
+    setAnomalies(prev => prev.map(a => {
+      if (a.id === anomalyId) {
+        return { ...a, ...updates };
+      }
+      return a;
+    }));
+  }, []);
+
   // Batch Anomaly Screening Handler
   const handleStartBatchScreening = useCallback(async (files, options = {}) => {
     soundFx.playTargetLock();
@@ -437,6 +447,7 @@ export default function App() {
               onNavigate={setCurrentView}
               surveyFile={importedSurveyFile}
               analysisResult={analysisResult}
+              onUpdateAnomaly={handleUpdateAnomaly}
             />
           </div>
         )}
@@ -447,7 +458,8 @@ export default function App() {
               anomalies={anomalies}
               selectedAnomalyId={selectedAnomalyId}
               onSelectAnomaly={setSelectedAnomalyId}
-              onUpdateAnomalyStatus={handleUpdateAnomalyStatus}
+              onUpdateAnomalyStatus={handleUpdateAnomaly}
+              onUpdateAnomaly={handleUpdateAnomaly}
               onNavigate={setCurrentView}
               surveyFile={importedSurveyFile}
               analysisResult={analysisResult}
