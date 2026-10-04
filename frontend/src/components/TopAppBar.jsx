@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, Sliders, Volume2, VolumeX, ArrowUpRight, FileSpreadsheet } from 'lucide-react';
+import { Sliders, Volume2, VolumeX, ArrowUpRight, FileSpreadsheet } from 'lucide-react';
 import { soundFx } from '../utils/audio';
 import { API_BASE_URL } from '../services/api';
 
 export default function TopAppBar({ 
   currentView, 
   onSwitchView, 
-  onToggleLayerDrawer, 
   onOpenSensorTuner, 
   anomalyCount,
   surveyFile,
@@ -170,18 +169,6 @@ export default function TopAppBar({
           }`}
         >
           {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-        </button>
-
-        {/* Cartographic Layers Drawer */}
-        <button
-          onClick={() => {
-            soundFx.playSonarPing(1100, 0.35);
-            onToggleLayerDrawer();
-          }}
-          title="Cartographic Layers"
-          className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center border border-[#1b283d] rounded-sm bg-[#0c1422]/70 text-[#8ea4bf] hover:text-on-surface hover:border-[#2a3c56] transition-colors cursor-pointer"
-        >
-          <Layers className="w-3.5 h-3.5" />
         </button>
 
         {/* Sensor Calibration Tuner */}

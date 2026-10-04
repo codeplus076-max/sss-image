@@ -255,8 +255,23 @@ async function optimizeImageForUpload(file, maxDimension = 1280) {
 }
 
 /**
- * POST /api/v1/analysis/jobs (with fallback to /api/v1/analysis/analyze)
- * Uploads an image for multi-model inference and persistence without gateway timeouts
+ * Error response handler for sonar analysis API endpoints.
+ */
+async function handleResponseErrors(res) {
+  const errorData = await res.json().catch(() => ({}));
+  if (res.status === 422) throw new SonarValidationError(errorData);
+  if (res.status === 415) {
+    const msg = 'Unsupported image format. Please upload JPG, PNG, TIFF, BMP or WebP.';
+    throw new ApiError(msg, 415, errorData, msg);
+  }
+  if (res.status === 400) {
+    const msg = errorData.detail || 'Unable to process this request. Please check the image and metadata.';
+    throw new ApiError(msg, 400, errorData, msg);
+  }
+}
+
+/**
+ * Executes multi-model side-scan sonar anomaly analysis on an image.
  */
 export async function analyzeSonarImage(imageFile, options = {}) {
   if (!imageFile) {
@@ -296,21 +311,7 @@ export async function analyzeSonarImage(imageFile, options = {}) {
       return await pollAnalysisJob(submission.job_id, options.onProgress);
     }
 
-    // Pass-through validation errors from immediate pre-check
-    if (jobSubmitResponse.status === 422) {
-      const errorData = await jobSubmitResponse.json().catch(() => ({}));
-      throw new SonarValidationError(errorData);
-    }
-    if (jobSubmitResponse.status === 415) {
-      const errorData = await jobSubmitResponse.json().catch(() => ({}));
-      const userMessage = 'Unsupported image format. Please upload JPG, PNG, TIFF, BMP or WebP.';
-      throw new ApiError(userMessage, 415, errorData, userMessage);
-    }
-    if (jobSubmitResponse.status === 400) {
-      const errorData = await jobSubmitResponse.json().catch(() => ({}));
-      const userMessage = errorData.detail || 'Unable to process this request. Please check the image and metadata.';
-      throw new ApiError(userMessage, 400, errorData, userMessage);
-    }
+    await handleResponseErrors(jobSubmitResponse);
   } catch (err) {
     if (err instanceof ApiError || err instanceof SonarValidationError) {
       throw err;
@@ -339,22 +340,7 @@ export async function analyzeSonarImage(imageFile, options = {}) {
     throw new ApiError(userMessage, response.status, null, userMessage);
   }
 
-  if (response.status === 422) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new SonarValidationError(errorData);
-  }
-
-  if (response.status === 415) {
-    const errorData = await response.json().catch(() => ({}));
-    const userMessage = 'Unsupported image format. Please upload JPG, PNG, TIFF, BMP or WebP.';
-    throw new ApiError(userMessage, 415, errorData, userMessage);
-  }
-
-  if (response.status === 400) {
-    const errorData = await response.json().catch(() => ({}));
-    const userMessage = errorData.detail || 'Unable to process this request. Please check the image, metadata and selected models.';
-    throw new ApiError(userMessage, 400, errorData, userMessage);
-  }
+  await handleResponseErrors(response);
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));

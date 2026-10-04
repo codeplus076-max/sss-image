@@ -66,10 +66,3 @@ def get_db() -> Generator[Session, None, None]:
     finally:
         db.close()
 
-
-# Ensure tables are created on module import
-try:
-    init_db()
-except Exception as _e:
-    logger.warning(f"Could not auto-initialize DB on import: {_e}")
-

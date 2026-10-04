@@ -44,7 +44,6 @@ export default function App() {
   // Modals & Drawers
   const [isSensorTunerOpen, setIsSensorTunerOpen] = useState(false);
   const [dispersalTarget, setDispersalTarget] = useState(null);
-  const [layerDrawerOpen, setLayerDrawerOpen] = useState(false);
   const [isLegalOpen, setIsLegalOpen] = useState(false);
 
   // Check and warm up backend status on mount
@@ -355,7 +354,6 @@ export default function App() {
       <TopAppBar
         currentView={currentView}
         onSwitchView={setCurrentView}
-        onToggleLayerDrawer={() => setLayerDrawerOpen(!layerDrawerOpen)}
         onOpenSensorTuner={() => setIsSensorTunerOpen(true)}
         anomalyCount={anomalies.filter(a => a.status === 'REQUIRES REVIEW' || a.status === 'PENDING REVIEW').length}
         surveyFile={importedSurveyFile}

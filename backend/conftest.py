@@ -16,3 +16,12 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 # Direct assignment overrides any .env file that pydantic-settings reads.
 # This must appear BEFORE any app module import so session.py uses SQLite.
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+
+import pytest
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_database():
+    """Ensure database schema is created for SQLite test runs."""
+    from app.db.session import init_db
+    init_db()
+
