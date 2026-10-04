@@ -180,8 +180,9 @@ class AnalysisService:
                             confidence=confidence,
                             iou=iou,
                         )
-                        if getattr(inf_resp, "triage", None) and not captured_triage:
-                            captured_triage = inf_resp.triage
+                        triage_val = getattr(inf_resp, "triage", None)
+                        if isinstance(triage_val, dict) and not captured_triage:
+                            captured_triage = triage_val
                         raw_detections.extend(inf_resp.detections)
                     except Exception as e:
                         models_failed += 1
@@ -266,7 +267,7 @@ class AnalysisService:
             metadata=survey_meta,
             detections=normalized_detections,
             summary=summary,
-            triage=captured_triage,
+            triage=captured_triage if isinstance(captured_triage, dict) else None,
             evidence_url=evidence_url,
         )
 
