@@ -1,0 +1,680 @@
+[
+  {
+    "filename": "wreck_Haltiner_Barge_09.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Egyptian_14.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2015_07jul_ov20_w0n0r0i0_028_png_jpg.rf.0b8a55c22218c8351a304ad7336e0ed1.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2018_10sep_ov20_w0n0r0i0_033_png_jpg.rf.e4ec5d3e4a170e6528da1271e4874034.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Monrovia_02.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Artificial_Reef_01.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Monohansett_03.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Montana_01.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_DM_Wilson_12.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Shamrock_05.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2017_12jul2_ov20_w0n0r0i0_004_png_jpg.rf.5aaa0725718ef6c7308c2c72dfdbb0e8.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2021_8jun_ov20_052_png_jpg.rf.c3e0753f6458f087802193f86385212d.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2010_13sep_ov20_w0n0r0i0_010_png.rf.c895c14e595eac7138065b0b51478f1c.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Viator_06.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2015_07julblue_ov20_w0n0r0i0_022_png.rf.2317c206e058d605abd46089aeaa72b3.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2018_01may_ov20_w0n0r0i0_166_png.rf.5754296f5e69d6d98b4c909ab0b6ffc9.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Egyptian_05.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Corsican_03.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Monohansett_01.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2015_07julblue_ov20_w0n0r0i0_023_png_jpg.rf.4ed193139eb24d9636b5ee11e70f35e9.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Lucinda_van_Valkenburg_08.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2010_15sep_ov20_w0n0r0i0_058_png.rf.f45df57d1a5d755a7c70b2992b3ef254.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Monrovia_01.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2018_03may1_ov20_w0n0r0i0_005_png.rf.2d1b63f00a4e9f95f9d27eb8cb1f46e4.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2018_01may_ov20_w0n0r0i0_098_png.rf.7ea3393f9ce63db3a40fc4e3ee78f261.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2018_01may_ov20_w0n0r0i0_014_png.rf.6cb677a97c30645f2a7bfb9a4de8e05e.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Exploratory_B_08.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_EB_Allen_07.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2010_12sep2_ov20_w0n0r0i0_036_png_jpg.rf.ff7ec0ae5a9d2e13af7fb3b14ef32ef5.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2015_07julblue_ov20_w0n0r0i0_018_png_jpg.rf.9ca1991ed09783848db29de4b349eeed.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2021_8jun_ov20_013_png_jpg.rf.ef21b7c8d3f80341cd6e07442cdc69fa.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Artificial_Reef_04.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2021_8jun_ov20_002_png.rf.6fd32670573a5c02fe254232d3720d08.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_EB_Allen_12.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2021_8jun_ov20_070_png.rf.1fccfb2d098020775ae152e242d593dd.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Lucinda_van_Valkenburg_16.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2017_13jul_ov20_w0n0r0i0_004_png.rf.b1627041a7d9dc3edf311249eeacb9b2.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2017_12jul1_ov20_w0n0r0i0_003_png_jpg.rf.aea9bca7db782a8ec3a751ae43ee4b63.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2015_07julblue_ov20_w0n0r0i0_025_png_jpg.rf.85b75c8f8f7c5ad65cc828b3cb11ed29.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_WP_Thew_07.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2018_19sep_ov20_w0n0r0i0_012_png_jpg.rf.8c08d092737ac0646eccaca95da3a812.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2015_07jul_ov20_w0n0r0i0_019_png.rf.01e89f836c469366e7fc1a9d92965b48.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_Viator_04.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "wreck_WP_Rend_11.png",
+    "category": "Maritime Shipwreck / Hull",
+    "folder": "02_shipwrecks",
+    "target_model": "shipwreck",
+    "secondary_models": [
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "mine_2018_10sep_ov20_w0n0r0i0_028_png_jpg.rf.74778987fab8565092b6efebbda76fdd.jpg",
+    "category": "Naval Mine / MILCO / NOMBO",
+    "folder": "01_naval_mines",
+    "target_model": "mines",
+    "secondary_models": [
+      "shipwreck",
+      "cylinder"
+    ],
+    "optimal_conf": 0.16
+  },
+  {
+    "filename": "usgs_h11320_gravel_0090.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0001.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0002.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0003.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0004.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0005.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0006.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0007.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0008.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0009.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0010.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0011.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0012.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0013.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0014.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0015.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0016.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0017.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0018.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0019.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0020.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0021.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0022.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0023.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "usgs_chandeleur_mud_0024.png",
+    "category": "Clean Natural Seabed (Sediment / Sand / Gravel)",
+    "folder": "04_clean_natural_seabed",
+    "target_model": "natural_seabed",
+    "optimal_conf": 0.5
+  },
+  {
+    "filename": "Sonar_02_FLAGGED_Industrial_Cylinder___Drum.jpg",
+    "category": "Industrial Cylinder / Container / Contact",
+    "folder": "03_cylinders_and_containers",
+    "target_model": "cylinder",
+    "secondary_models": [
+      "mines"
+    ],
+    "optimal_conf": 0.25
+  },
+  {
+    "filename": "Sonar_04_FLAGGED_Industrial_Cylinder___Drum.jpg",
+    "category": "Industrial Cylinder / Container / Contact",
+    "folder": "03_cylinders_and_containers",
+    "target_model": "cylinder",
+    "secondary_models": [
+      "mines"
+    ],
+    "optimal_conf": 0.25
+  },
+  {
+    "filename": "Sonar_09_FLAGGED_Non-Mine_Mine-Like_Bottom_Object_(NOMBO).jpg",
+    "category": "Industrial Cylinder / Container / Contact",
+    "folder": "03_cylinders_and_containers",
+    "target_model": "cylinder",
+    "secondary_models": [
+      "mines"
+    ],
+    "optimal_conf": 0.25
+  }
+]

@@ -191,6 +191,9 @@ class InferenceService:
                 triage=result_json.get("triage"),
             )
         except Exception as e:
+            global _hf_client
+            if "ZeroGPU" in str(e) or "limit" in str(e).lower() or "quota" in str(e).lower() or "timed out" in str(e).lower():
+                _hf_client = False
             logger.warning(
                 f"Remote ZeroGPU inference failed on model '{definition.key}', falling back to local: {e}"
             )
@@ -306,6 +309,9 @@ class InferenceService:
             )
             return detections, result_json.get("triage")
         except Exception as e:
+            global _hf_client
+            if "ZeroGPU" in str(e) or "limit" in str(e).lower() or "quota" in str(e).lower() or "timed out" in str(e).lower():
+                _hf_client = False
             logger.warning(f"Remote batch ZeroGPU pass failed, falling back to sequential: {e}")
             if temp_path and os.path.exists(temp_path):
                 try:

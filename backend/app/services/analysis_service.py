@@ -87,7 +87,7 @@ class AnalysisService:
         geolocation: Optional[AnalysisGeolocation] = None,
         confidence: Optional[float] = None,
         iou: Optional[float] = None,
-        enable_seabed_gate: bool = True,
+        enable_seabed_gate: bool = False,
         seabed_clean_threshold: float = 0.92,
         progress_callback: Optional[Any] = None,
     ) -> AnalysisResponse:
@@ -124,16 +124,14 @@ class AnalysisService:
                     clean_threshold=seabed_clean_threshold,
                 )
                 captured_triage = triage_res.model_dump()
-                if triage_res.downstream_skipped and not only_seabed_requested:
+                if only_seabed_requested:
                     bypass_downstream = True
-                    logger.info(
-                        f"[Stage 1 Triage] Verified Clean Seabed (P_clean={triage_res.clean_probability:.4f} >= {seabed_clean_threshold}). "
-                        f"Bypassing downstream detectors."
-                    )
+                    logger.info("[Stage 1 Triage] Only natural_seabed model requested; skipping specialized detectors.")
                 else:
                     logger.info(
                         f"[Stage 1 Triage] Triage complete: decision={triage_res.decision}, "
-                        f"P_clean={triage_res.clean_probability:.4f}, P_anomaly={triage_res.anomaly_probability:.4f}"
+                        f"P_clean={triage_res.clean_probability:.4f}, P_anomaly={triage_res.anomaly_probability:.4f}. "
+                        f"Proceeding to Stage 2 multi-model detectors for full anomaly inspection."
                     )
             except Exception as e:
                 logger.warning(f"Stage 1 seabed triage failed, falling forward to Stage 2: {e}")

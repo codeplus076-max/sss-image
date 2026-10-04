@@ -137,7 +137,7 @@ def analyze_sonar_survey(
         None, description="Optional NMS IoU threshold [0.0 - 1.0]."
     ),
     enable_seabed_gate: Optional[Union[bool, str]] = Form(
-        True, description="Enable Stage 1 natural seabed classification gate."
+        False, description="Enable Stage 1 natural seabed classification gate."
     ),
     seabed_clean_threshold: Optional[Union[float, str]] = Form(
         0.92, description="Clean seabed probability threshold [0.50 - 0.99] to bypass Stage 2 detectors."
@@ -154,12 +154,12 @@ def analyze_sonar_survey(
             detail="Confidence threshold must be between 0.0 and 1.0.",
         )
 
-    gate_val = True
+    gate_val = False
     if enable_seabed_gate is not None:
         if isinstance(enable_seabed_gate, bool):
             gate_val = enable_seabed_gate
         elif isinstance(enable_seabed_gate, str):
-            gate_val = enable_seabed_gate.strip().lower() not in ("false", "0", "no", "off")
+            gate_val = enable_seabed_gate.strip().lower() in ("true", "1", "yes", "on")
 
     clean_thresh_val = _parse_float(seabed_clean_threshold, "Seabed clean threshold")
     if clean_thresh_val is None:
