@@ -397,6 +397,123 @@ class InferenceService:
         )
 
     @staticmethod
+    def classify_seabed_roi(
+        roi: "np.ndarray",
+        clean_threshold: float = 0.70,
+    ) -> "TriageClassificationResult":
+        """Classify a pre-cropped region-of-interest (ROI) against the natural seabed model.
+
+        Unlike classify_seabed(), this method accepts a raw numpy crop directly
+        (already extracted from the original swath) and is optimised for rapid
+        per-detection re-verification without redundant preprocessing.
+
+        Args:
+            roi: Cropped numpy array (HWC, RGB) extracted from the detection bounding box.
+            clean_threshold: Probability above which the ROI is considered conclusively
+                             clean seabed and the parent detection should be suppressed.
+                             Lower than the full-image threshold (default 0.70) to be
+                             more aggressive about catching false positives.
+
+        Returns:
+            TriageClassificationResult with per-ROI decision.
+        """
+        import gc as _gc
+
+        definition = get_model_definition("natural_seabed")
+        model = load_model(definition.key)
+
+        # Ensure ROI is valid and large enough to classify
+        if roi is None or roi.size == 0 or roi.shape[0] < 8 or roi.shape[1] < 8:
+            # If ROI is too small to meaningfully classify, pass-through (don't suppress)
+            return TriageClassificationResult(
+                model_name="natural_seabed",
+                predicted_class="debris_anomaly",
+                is_clean=False,
+                anomaly_suspected=True,
+                is_uncertain=True,
+                clean_probability=0.0,
+                anomaly_probability=1.0,
+                decision="ROI_TOO_SMALL",
+                threshold_used=float(clean_threshold),
+                downstream_skipped=False,
+                inference_time_ms=0.0,
+            )
+
+        start_time = time.perf_counter()
+        try:
+            with torch.inference_mode():
+                results = model.predict(
+                    source=roi,
+                    imgsz=definition.input_size[0],
+                    verbose=False,
+                )
+        except Exception as e:
+            logger.warning(f"[ROI Re-verify] natural_seabed ROI classification failed: {e}")
+            return TriageClassificationResult(
+                model_name="natural_seabed",
+                predicted_class="debris_anomaly",
+                is_clean=False,
+                anomaly_suspected=True,
+                is_uncertain=True,
+                clean_probability=0.0,
+                anomaly_probability=1.0,
+                decision="ROI_ERROR",
+                threshold_used=float(clean_threshold),
+                downstream_skipped=False,
+                inference_time_ms=0.0,
+            )
+        finally:
+            _gc.collect()
+
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+
+        p_clean = 0.50
+        p_anomaly = 0.50
+        if results and len(results) > 0 and hasattr(results[0], "probs") and results[0].probs is not None:
+            probs = results[0].probs.data.cpu().numpy().tolist()
+            if len(probs) >= 2:
+                p_clean = float(probs[0])
+                p_anomaly = float(probs[1])
+
+        if p_clean >= clean_threshold:
+            decision = "ROI_BYPASS_CLEAN"
+            is_clean = True
+            anomaly_suspected = False
+            is_uncertain = False
+            predicted_class = "clean_seabed"
+        elif p_anomaly >= 0.50:
+            decision = "ROI_ANOMALY_CONFIRMED"
+            is_clean = False
+            anomaly_suspected = True
+            is_uncertain = False
+            predicted_class = "debris_anomaly"
+        else:
+            decision = "ROI_UNSURE_KEPT"
+            is_clean = False
+            anomaly_suspected = False
+            is_uncertain = True
+            predicted_class = "debris_anomaly"
+
+        logger.debug(
+            f"[ROI Re-verify] p_clean={p_clean:.3f} p_anomaly={p_anomaly:.3f} "
+            f"threshold={clean_threshold} → {decision} ({elapsed_ms:.1f}ms)"
+        )
+
+        return TriageClassificationResult(
+            model_name="natural_seabed",
+            predicted_class=predicted_class,
+            is_clean=is_clean,
+            anomaly_suspected=anomaly_suspected,
+            is_uncertain=is_uncertain,
+            clean_probability=round(p_clean, 4),
+            anomaly_probability=round(p_anomaly, 4),
+            decision=decision,
+            threshold_used=float(clean_threshold),
+            downstream_skipped=is_clean,
+            inference_time_ms=round(elapsed_ms, 2),
+        )
+
+    @staticmethod
     def predict(
         name_or_key: str,
         image: Union[np.ndarray, Image.Image, str, Path],

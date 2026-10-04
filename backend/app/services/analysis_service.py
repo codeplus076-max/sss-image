@@ -89,6 +89,8 @@ class AnalysisService:
         iou: Optional[float] = None,
         enable_seabed_gate: bool = False,
         seabed_clean_threshold: float = 0.92,
+        enable_roi_reverify: bool = True,
+        roi_clean_threshold: float = 0.70,
         progress_callback: Optional[Any] = None,
     ) -> AnalysisResponse:
         """Run complete analysis pipeline on an uploaded sonar image."""
@@ -203,6 +205,17 @@ class AnalysisService:
         # Conservative cross-model deduplication for overlapping models
         active_detections = deduplicate_cross_model_detections(raw_detections, iou_threshold=0.50)
 
+        # ROI-level re-verification: classify each detection's crop against natural_seabed
+        # to eliminate false positives caused by textured seabed regions being flagged as anomalies.
+        if enable_roi_reverify and active_detections:
+            if progress_callback:
+                progress_callback(0.88, "Running localized ROI re-verification to suppress false positives...")
+            active_detections = _roi_reverify_detections(
+                detections=active_detections,
+                full_image=preprocessed.np_array,
+                clean_threshold=roi_clean_threshold,
+            )
+
         if progress_callback:
             progress_callback(0.92, "Synthesizing detection intelligence and spatial bounding boxes...")
 
@@ -273,6 +286,97 @@ class AnalysisService:
 
 
 analysis_service = AnalysisService()
+
+
+def _roi_reverify_detections(
+    detections: List[Any],
+    full_image: "np.ndarray",
+    clean_threshold: float = 0.70,
+) -> List[Any]:
+    """Re-verify each detection by running the natural_seabed classifier on its cropped ROI.
+
+    Strategy:
+    - Crop the exact bounding box region from the full sonar swath.
+    - Classify the crop with `classify_seabed_roi()` using a lower threshold than the
+      whole-image gate (default 0.70 vs 0.92) to be aggressive about suppressing
+      false positives without masking real anomalies.
+    - If the crop is confirmed as clean seabed AND the detection confidence is below
+      a high-confidence exemption threshold (0.75), suppress the detection.
+    - Detections with confidence >= 0.75 are kept unconditionally — the object detector
+      is very sure, and the seabed classifier is less reliable at such high object conf.
+
+    Args:
+        detections: List of DetectionResult objects from multi-model inference.
+        full_image: Full sonar swath as numpy array (HWC, RGB).
+        clean_threshold: ROI p_clean threshold above which detection is suppressed.
+
+    Returns:
+        Filtered list with false-positive detections removed.
+    """
+    import numpy as np
+
+    # High-confidence exemption: don't suppress if the detector is very confident
+    HIGH_CONF_EXEMPT = 0.75
+
+    kept = []
+    h, w = full_image.shape[:2]
+
+    for det in detections:
+        try:
+            bbox = det.bounding_box
+            conf = det.confidence
+
+            # High-confidence detections are exempt from ROI suppression
+            if conf >= HIGH_CONF_EXEMPT:
+                kept.append(det)
+                logger.debug(
+                    f"[ROI Re-verify] EXEMPT (conf={conf:.3f} >= {HIGH_CONF_EXEMPT}) → kept"
+                )
+                continue
+
+            # Extract pixel coords, clamped to image bounds
+            x1 = max(0, int(bbox.x1))
+            y1 = max(0, int(bbox.y1))
+            x2 = min(w, int(bbox.x2))
+            y2 = min(h, int(bbox.y2))
+
+            # Safety guard: ensure crop has meaningful area
+            if (x2 - x1) < 8 or (y2 - y1) < 8:
+                kept.append(det)
+                continue
+
+            roi_crop = full_image[y1:y2, x1:x2]
+
+            roi_result = inference_service.classify_seabed_roi(
+                roi=roi_crop,
+                clean_threshold=clean_threshold,
+            )
+
+            if roi_result.is_clean:
+                logger.info(
+                    f"[ROI Re-verify] SUPPRESSED detection '{det.semantic_class_name}' "
+                    f"conf={conf:.3f} → ROI p_clean={roi_result.clean_probability:.3f} "
+                    f"(threshold={clean_threshold}) — false positive eliminated"
+                )
+                # Don't append → detection suppressed
+            else:
+                kept.append(det)
+                logger.debug(
+                    f"[ROI Re-verify] KEPT '{det.semantic_class_name}' conf={conf:.3f} "
+                    f"ROI p_clean={roi_result.clean_probability:.3f} ({roi_result.decision})"
+                )
+        except Exception as e:
+            # On any ROI error, keep the detection to avoid silencing real anomalies
+            logger.warning(f"[ROI Re-verify] Error classifying ROI, keeping detection: {e}")
+            kept.append(det)
+
+    suppressed = len(detections) - len(kept)
+    if suppressed > 0:
+        logger.info(f"[ROI Re-verify] Suppressed {suppressed}/{len(detections)} false-positive detections via ROI re-verification.")
+    else:
+        logger.debug(f"[ROI Re-verify] All {len(detections)} detections passed ROI re-verification.")
+
+    return kept
 
 
 def extract_acoustic_anomalies(

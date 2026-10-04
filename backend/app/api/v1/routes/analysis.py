@@ -142,6 +142,12 @@ def analyze_sonar_survey(
     seabed_clean_threshold: Optional[Union[float, str]] = Form(
         0.92, description="Clean seabed probability threshold [0.50 - 0.99] to bypass Stage 2 detectors."
     ),
+    enable_roi_reverify: Optional[Union[bool, str]] = Form(
+        True, description="Enable localized ROI re-verification to suppress false positives (default: True)."
+    ),
+    roi_clean_threshold: Optional[Union[float, str]] = Form(
+        0.70, description="ROI clean threshold [0.50 - 0.99]: ROI crops above this are suppressed (default: 0.70)."
+    ),
     db: Session = Depends(get_db),
 ) -> Union[AnalysisResponse, JSONResponse]:
     """Analyze a sonar image through the end-to-end multi-model pipeline and persist results."""
@@ -166,6 +172,19 @@ def analyze_sonar_survey(
         clean_thresh_val = 0.92
     elif not (0.50 <= clean_thresh_val <= 0.99):
         clean_thresh_val = max(0.50, min(0.99, clean_thresh_val))
+
+    roi_reverify_val = True
+    if enable_roi_reverify is not None:
+        if isinstance(enable_roi_reverify, bool):
+            roi_reverify_val = enable_roi_reverify
+        elif isinstance(enable_roi_reverify, str):
+            roi_reverify_val = enable_roi_reverify.strip().lower() not in ("false", "0", "no", "off")
+
+    roi_thresh_val = _parse_float(roi_clean_threshold, "ROI clean threshold")
+    if roi_thresh_val is None:
+        roi_thresh_val = 0.70
+    elif not (0.50 <= roi_thresh_val <= 0.99):
+        roi_thresh_val = max(0.50, min(0.99, roi_thresh_val))
 
     iou_val = _parse_float(iou, "IoU threshold")
     if iou_val is not None and not (0.0 <= iou_val <= 1.0):
@@ -269,6 +288,8 @@ def analyze_sonar_survey(
             iou=iou_val,
             enable_seabed_gate=gate_val,
             seabed_clean_threshold=clean_thresh_val,
+            enable_roi_reverify=roi_reverify_val,
+            roi_clean_threshold=roi_thresh_val,
         )
     except UnsupportedFormatError as e:
         raise HTTPException(
@@ -326,6 +347,8 @@ def _run_async_analysis_pipeline(
     iou: Optional[float],
     enable_seabed_gate: bool = True,
     seabed_clean_threshold: float = 0.92,
+    enable_roi_reverify: bool = True,
+    roi_clean_threshold: float = 0.70,
 ):
     """Background task worker for asynchronous analysis job."""
     from app.db.session import SessionLocal
@@ -355,6 +378,8 @@ def _run_async_analysis_pipeline(
             iou=iou,
             enable_seabed_gate=enable_seabed_gate,
             seabed_clean_threshold=seabed_clean_threshold,
+            enable_roi_reverify=enable_roi_reverify,
+            roi_clean_threshold=roi_clean_threshold,
             progress_callback=_on_progress,
         )
 
@@ -402,6 +427,12 @@ async def submit_analysis_job(
     seabed_clean_threshold: Optional[Union[float, str]] = Form(
         0.92, description="Clean seabed probability threshold [0.50 - 0.99] to bypass Stage 2 detectors."
     ),
+    enable_roi_reverify: Optional[Union[bool, str]] = Form(
+        True, description="Enable localized ROI re-verification to suppress false positives (default: True)."
+    ),
+    roi_clean_threshold: Optional[Union[float, str]] = Form(
+        0.70, description="ROI clean threshold [0.50 - 0.99] for per-detection crop verification (default: 0.70)."
+    ),
 ) -> JobSubmissionResponse:
     """Submit a survey image for non-blocking asynchronous analysis."""
     # 1. Parameter Type & Range Validations
@@ -424,6 +455,19 @@ async def submit_analysis_job(
         clean_thresh_val = 0.92
     elif not (0.50 <= clean_thresh_val <= 0.99):
         clean_thresh_val = max(0.50, min(0.99, clean_thresh_val))
+
+    roi_reverify_val = True
+    if enable_roi_reverify is not None:
+        if isinstance(enable_roi_reverify, bool):
+            roi_reverify_val = enable_roi_reverify
+        elif isinstance(enable_roi_reverify, str):
+            roi_reverify_val = enable_roi_reverify.strip().lower() not in ("false", "0", "no", "off")
+
+    roi_thresh_val = _parse_float(roi_clean_threshold, "ROI clean threshold")
+    if roi_thresh_val is None:
+        roi_thresh_val = 0.70
+    elif not (0.50 <= roi_thresh_val <= 0.99):
+        roi_thresh_val = max(0.50, min(0.99, roi_thresh_val))
 
     iou_val = _parse_float(iou, "IoU threshold")
     if iou_val is not None and not (0.0 <= iou_val <= 1.0):
@@ -507,6 +551,8 @@ async def submit_analysis_job(
         iou=iou_val,
         enable_seabed_gate=gate_val,
         seabed_clean_threshold=clean_thresh_val,
+        enable_roi_reverify=roi_reverify_val,
+        roi_clean_threshold=roi_thresh_val,
     )
 
     return JobSubmissionResponse(
