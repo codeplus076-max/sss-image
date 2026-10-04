@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { soundFx } from '../../utils/audio';
 import { MASTER_DETECTIONS } from '../../data/sharedDetections';
+import { API_BASE_URL } from '../../services/api';
 
 export default function DetectionsView({ 
   onNavigate,
@@ -389,13 +390,11 @@ export default function DetectionsView({
 
               {/* Aspect-Ratio-Preserving Swath Container */}
               <div
-                className="relative transition-transform duration-75 flex items-center justify-center"
+                className="relative transition-transform duration-75 flex items-center justify-center max-w-full max-h-full"
                 style={{
-                  width: fitMode === 'contain' ? (imageAspect ? (imageAspect >= 1 ? '100%' : `${imageAspect * 100}%`) : '100%') : '100%',
-                  height: '100%',
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  aspectRatio: fitMode === 'contain' && imageAspect ? `${imageAspect}` : undefined
+                  aspectRatio: fitMode === 'contain' && imageAspect ? `${imageAspect}` : undefined,
+                  width: fitMode === 'cover' ? '100%' : undefined,
+                  height: fitMode === 'cover' ? '100%' : undefined,
                 }}
               >
                 {imageUrl && (
@@ -408,7 +407,7 @@ export default function DetectionsView({
                       }
                     }}
                     className={`w-full h-full pointer-events-none opacity-90 contrast-125 block ${
-                      fitMode === 'contain' ? 'object-contain' : 'object-cover'
+                      fitMode === 'contain' ? 'object-fill' : 'object-cover'
                     }`}
                     onError={(e) => {
                       if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {

@@ -552,13 +552,11 @@ export default function WorkspaceView({
                 onMouseLeave={handleMouseUp}
               >
                 <div
-                  className="relative transition-transform duration-75 flex items-center justify-center"
+                  className="relative transition-transform duration-75 flex items-center justify-center max-w-full max-h-full"
                   style={{
-                    width: fitMode === 'contain' ? (imageAspect ? (imageAspect >= 1 ? '100%' : `${imageAspect * 100}%`) : '100%') : '100%',
-                    height: '100%',
-                    maxWidth: '100%',
-                    maxHeight: '100%',
                     aspectRatio: fitMode === 'contain' && imageAspect ? `${imageAspect}` : undefined,
+                    width: fitMode === 'cover' ? '100%' : undefined,
+                    height: fitMode === 'cover' ? '100%' : undefined,
                     transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
                     transformOrigin: '50% 50%'
                   }}
@@ -582,7 +580,7 @@ export default function WorkspaceView({
                         }
                       }}
                       className={`w-full h-full pointer-events-none opacity-90 contrast-125 block ${
-                        fitMode === 'contain' ? 'object-contain' : 'object-cover'
+                        fitMode === 'contain' ? 'object-fill' : 'object-cover'
                       }`}
                       onError={(e) => {
                         if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
@@ -610,6 +608,7 @@ export default function WorkspaceView({
                   {/* Anomaly Bounding Boxes */}
                   {detections.map((det) => {
                     const isSelected = det.id === selectedId;
+                    const box = det.bbox || det.box || { x: 0, y: 0, w: 0, h: 0 };
                     return (
                       <div
                         key={det.id}
@@ -618,10 +617,10 @@ export default function WorkspaceView({
                           handleSelectDetection(det.id);
                         }}
                         style={{
-                          left: `${det.bbox.x}%`,
-                          top: `${det.bbox.y}%`,
-                          width: `${det.bbox.w}%`,
-                          height: `${det.bbox.h}%`
+                          left: `${box.x}%`,
+                          top: `${box.y}%`,
+                          width: `${box.w}%`,
+                          height: `${box.h}%`
                         }}
                         className={`absolute cursor-pointer transition-all z-20 ${
                           isSelected
@@ -689,13 +688,11 @@ export default function WorkspaceView({
               onMouseLeave={handleMouseUp}
             >
               <div
-                className="relative transition-transform duration-75 flex items-center justify-center"
+                className="relative transition-transform duration-75 flex items-center justify-center max-w-full max-h-full"
                 style={{
-                  width: fitMode === 'contain' ? (imageAspect ? (imageAspect >= 1 ? '100%' : `${imageAspect * 100}%`) : '100%') : '100%',
-                  height: '100%',
-                  maxWidth: '100%',
-                  maxHeight: '100%',
                   aspectRatio: fitMode === 'contain' && imageAspect ? `${imageAspect}` : undefined,
+                  width: fitMode === 'cover' ? '100%' : undefined,
+                  height: fitMode === 'cover' ? '100%' : undefined,
                   transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
                   transformOrigin: '50% 50%'
                 }}
@@ -710,7 +707,7 @@ export default function WorkspaceView({
                       }
                     }}
                     className={`w-full h-full pointer-events-none opacity-90 contrast-125 block ${
-                      fitMode === 'contain' ? 'object-contain' : 'object-cover'
+                      fitMode === 'contain' ? 'object-fill' : 'object-cover'
                     }`}
                     onError={(e) => {
                       if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
@@ -730,15 +727,16 @@ export default function WorkspaceView({
                 {/* Bounding boxes */}
                 {detections.map((det) => {
                   const isSelected = det.id === selectedId;
+                  const box = det.bbox || det.box || { x: 0, y: 0, w: 0, h: 0 };
                   return (
                     <div
                       key={det.id}
                       onClick={() => handleSelectDetection(det.id)}
                       style={{
-                        left: `${det.bbox.x}%`,
-                        top: `${det.bbox.y}%`,
-                        width: `${det.bbox.w}%`,
-                        height: `${det.bbox.h}%`
+                        left: `${box.x}%`,
+                        top: `${box.y}%`,
+                        width: `${box.w}%`,
+                        height: `${box.h}%`
                       }}
                       className={`absolute cursor-pointer transition-all z-20 ${
                         isSelected

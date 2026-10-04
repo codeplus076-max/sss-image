@@ -47,7 +47,7 @@ export default function SonarIngestView({
     heading: '',
     timestamp: ''
   });
-  const [enableSeabedGate, setEnableSeabedGate] = useState(true);
+  const [enableSeabedGate, setEnableSeabedGate] = useState(false);
   const [seabedCleanThreshold, setSeabedCleanThreshold] = useState(0.92);
   const [selectedModels, setSelectedModels] = useState([
     'cylinder',

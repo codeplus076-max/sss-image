@@ -137,10 +137,10 @@ def deduplicate_cross_model_detections(
     if len(detections) <= 1:
         return detections
 
-    # Score function: confidence + operational safety bias to break near-ties in favor of higher risk
+    # Score function: confidence + operational safety bias to prioritize domain-specific hazards (e.g. Shipwreck, Mines)
     def priority_score(d: DetectionResult) -> float:
         p_rank, _ = determine_detection_priority(d.raw_class_name)
-        weight = 0.05 if p_rank == "HIGH" else (0.02 if p_rank == "MEDIUM" else 0.0)
+        weight = 0.35 if p_rank == "HIGH" else (0.15 if p_rank == "MEDIUM" else 0.0)
         return float(d.confidence) + weight
 
     sorted_dets = sorted(detections, key=priority_score, reverse=True)
