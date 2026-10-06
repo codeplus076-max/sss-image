@@ -571,8 +571,8 @@ class InferenceService:
 
         # On CPU without CUDA, YOLO12 A2C2f area-attention scales quadratically O(N^2).
         # On free-tier containers with <=512MB RAM, 640px allocates >1.2 GB and triggers Linux OOM killer.
-        # Downscale to 384px (or CPU_MAX_IMAGE_SIZE) on CPU to keep memory footprint <= 250 MB and speed up inference.
-        cpu_max_sz = int(os.getenv("CPU_MAX_IMAGE_SIZE", "384"))
+        # Native input size from model definition (e.g. 1536 for Cylinder, 640 for others)
+        cpu_max_sz = int(os.getenv("CPU_MAX_IMAGE_SIZE", "1536"))
         if not torch.cuda.is_available() and native_imgsz > cpu_max_sz:
             exec_imgsz = cpu_max_sz
         else:

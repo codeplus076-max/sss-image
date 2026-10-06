@@ -194,14 +194,6 @@ class AnalysisService:
                             unload_model(model_def.key)
                     gc.collect()
 
-        # If and only if all models crashed/failed due to server memory or environmental constraints,
-        # provide fallback acoustic contrast candidates labeled accurately as acoustic anomalies.
-        if not raw_detections and models_failed == len(target_models) and len(target_models) > 0:
-            raw_detections = extract_acoustic_anomalies(
-                preprocessed.np_array,
-                confidence=confidence,
-            )
-
         # Conservative cross-model deduplication for overlapping models
         active_detections = deduplicate_cross_model_detections(raw_detections, iou_threshold=0.50)
 
@@ -215,6 +207,32 @@ class AnalysisService:
                 full_image=preprocessed.np_array,
                 clean_threshold=roi_clean_threshold,
             )
+
+        # If no verified specialized targets remain, check seabed anomaly screening:
+        # If an uncatalogued anomaly or wreck structure is confirmed (p_anomaly > 0.60),
+        # extract candidate acoustic highlight/shadow regions and verify them.
+        if not active_detections and len(target_models) > 0:
+            p_anomaly = 0.0
+            try:
+                triage_res = inference_service.classify_seabed(image=preprocessed.np_array)
+                captured_triage = triage_res.model_dump()
+                p_anomaly = triage_res.anomaly_probability
+            except Exception as e:
+                logger.debug(f"Seabed anomaly screening skipped: {e}")
+
+            if p_anomaly > 0.60 or models_failed == len(target_models):
+                anom_boxes = extract_acoustic_anomalies(
+                    preprocessed.np_array,
+                    confidence=confidence,
+                )
+                if enable_roi_reverify and anom_boxes:
+                    active_detections = _roi_reverify_detections(
+                        detections=anom_boxes,
+                        full_image=preprocessed.np_array,
+                        clean_threshold=roi_clean_threshold,
+                    )
+                else:
+                    active_detections = anom_boxes
 
         if progress_callback:
             progress_callback(0.92, "Synthesizing detection intelligence and spatial bounding boxes...")
@@ -326,11 +344,12 @@ def _roi_reverify_detections(
             bbox = det.bounding_box
             conf = det.confidence
 
-            # High-confidence detections are exempt from ROI suppression
-            if conf >= HIGH_CONF_EXEMPT:
+            # High-confidence detections and verified shipwreck structures are exempt from ROI suppression
+            exempt_thresh = 0.18 if "shipwreck" in det.raw_class_name.lower() else 0.50
+            if conf >= exempt_thresh:
                 kept.append(det)
                 logger.debug(
-                    f"[ROI Re-verify] EXEMPT (conf={conf:.3f} >= {HIGH_CONF_EXEMPT}) → kept"
+                    f"[ROI Re-verify] EXEMPT '{det.semantic_class_name}' (conf={conf:.3f} >= {exempt_thresh}) → kept"
                 )
                 continue
 

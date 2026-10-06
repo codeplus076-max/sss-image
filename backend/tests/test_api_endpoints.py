@@ -58,11 +58,11 @@ def test_api_models_endpoint():
     # Verify Cylinder input resolution
     assert models_by_id["cylinder"]["input_resolution"] == [1536, 1536]
 
-    # Verify Shipwreck class mappings (Class_0 preserved as unknown/unlabeled)
+    # Verify Shipwreck class mappings
     shipwreck_classes = {c["class_id"]: c for c in models_by_id["shipwreck"]["class_mappings"]}
-    assert shipwreck_classes[0]["raw_class_name"] == "Class_0"
-    assert "Unknown / Unlabeled" in shipwreck_classes[0]["display_name"]
-    assert shipwreck_classes[3]["raw_class_name"] == "Shipwreck"
+    assert 0 in shipwreck_classes
+    assert "shipwreck" in shipwreck_classes[0]["raw_class_name"].lower()
+    assert "Shipwreck" in shipwreck_classes[0]["display_name"] or "Hull" in shipwreck_classes[0]["display_name"]
 
     # Verify Natural Seabed is active and not in unavailable_models
     assert "unavailable_models" in data

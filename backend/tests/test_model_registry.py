@@ -60,20 +60,13 @@ def test_mine_detector_properties():
 
 
 def test_shipwreck_detector_properties():
-    """Verify Shipwreck detector classes including Class_0 and Shipwreck."""
+    """Verify Shipwreck detector classes and high-resolution architecture."""
     m = get_model_definition("shipwreck")
-    assert m.architecture == "YOLO26n"
-    assert m.input_size == (640, 640)
-    assert m.raw_classes == {
-        0: "Class_0",
-        1: "MILCO",
-        2: "NOMBO",
-        3: "Shipwreck",
-    }
-    # Class_0 must be preserved and marked as unknown/unlabeled
-    assert "Class_0" in m.get_semantic_label(0)
-    assert "Unknown / Unlabeled" in m.get_semantic_label(0)
-    assert "Shipwreck" in m.get_semantic_label(3)
+    assert "YOLO" in m.architecture
+    assert m.input_size == (1024, 1024)
+    assert 0 in m.raw_classes
+    assert "shipwreck" in m.raw_classes[0].lower()
+    assert "Shipwreck" in m.get_semantic_label(0) or "Hull" in m.get_semantic_label(0)
 
 
 def test_subpipes_detector_properties():

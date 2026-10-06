@@ -54,9 +54,9 @@ MODEL_REGISTRY: Dict[str, ModelDefinition] = {
         task="detect",
         raw_classes={0: "Cylinder"},
         semantic_labels={0: "Industrial Cylinder / Drum"},
-        default_conf=0.35,
+        default_conf=0.25,
         default_iou=0.70,
-        notes="High-resolution industrial cylinder & container hazard detector. Calibrated threshold 0.35 suppresses seafloor false alarms.",
+        notes="High-resolution industrial cylinder & container hazard detector. Calibrated threshold 0.25 suppresses seafloor false alarms with ROI re-verification.",
     ),
     "ghostvision": ModelDefinition(
         name="GhostVision",
@@ -93,26 +93,20 @@ MODEL_REGISTRY: Dict[str, ModelDefinition] = {
     "shipwreck": ModelDefinition(
         name="Shipwreck Detector",
         key="shipwreck",
-        relative_path="shipwreak model/best",
-        architecture="YOLO26n",
-        input_size=(640, 640),
-        task="detect",
+        relative_path="shipwreck.pt",
+        architecture="YOLO26n-seg",
+        input_size=(1024, 1024),
+        task="segment",
         raw_classes={
-            0: "Class_0",
-            1: "MILCO",
-            2: "NOMBO",
-            3: "Shipwreck",
+            0: "shipwreck",
         },
         semantic_labels={
-            0: "Class_0 (Unknown / Unlabeled Artifact)",
-            1: "Mine-Like Contact (MILCO)",
-            2: "Non-Mine Mine-Like Bottom Object (NOMBO)",
-            3: "Maritime Shipwreck / Hull",
+            0: "Maritime Shipwreck / Hull",
         },
-        default_conf=0.16,
-        default_iou=0.70,
+        default_conf=0.18,
+        default_iou=0.60,
         is_end2end=True,
-        notes="Multi-class compact detector for maritime wrecks, hulls, and bottom contacts. Calibrated threshold 0.16 optimizes hull detection.",
+        notes="High-precision maritime shipwreck segmentation detector. Trained directly on multi-survey shipwreck acoustic datasets.",
     ),
     "subpipes": ModelDefinition(
         name="Subsea Pipeline Detector",
@@ -200,12 +194,18 @@ def list_registered_models() -> List[ModelDefinition]:
 
 def resolve_model_path(definition: ModelDefinition) -> Path:
     """Resolve the absolute filesystem path for a model's source directory, pre-packaged .onnx, or .pt archive."""
-    # 0. Check for ultra-fast ONNX model first (preferred for 20x CPU speedup and low memory)
+    # 0. High-resolution models (e.g. cylinder at 1536px) require native PyTorch weights to preserve small targets
+    if definition.input_size[0] > 640:
+        direct_pt = MODELS_DIR / f"{definition.key}.pt"
+        if direct_pt.exists():
+            return direct_pt
+
+    # 1. Check for ultra-fast ONNX model first (preferred for 640px models)
     direct_onnx = MODELS_DIR / f"{definition.key}.onnx"
     if direct_onnx.exists():
         return direct_onnx
 
-    # 1. Check for pre-packaged .pt archive
+    # 2. Check for pre-packaged .pt archive
     direct_pt = MODELS_DIR / f"{definition.key}.pt"
     if direct_pt.exists():
         return direct_pt

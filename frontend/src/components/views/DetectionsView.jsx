@@ -42,6 +42,56 @@ export default function DetectionsView({
   const [imageAspect, setImageAspect] = useState(null);
   const [reclassifyingId, setReclassifyingId] = useState(null);
 
+  const viewportRef = React.useRef(null);
+  const [vpSize, setVpSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width && height) setVpSize({ width, height });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (analysisResult?.image?.width && analysisResult?.image?.height) {
+      setImageAspect(analysisResult.image.width / analysisResult.image.height);
+    }
+  }, [analysisResult]);
+
+  const calculateFittedDimensions = (vpWidth, vpHeight, aspect, mode) => {
+    if (!vpWidth || !vpHeight || !aspect) {
+      return { width: '100%', height: '100%' };
+    }
+    const vpAspect = vpWidth / vpHeight;
+    let w, h;
+    if (mode === 'contain') {
+      if (aspect > vpAspect) {
+        w = vpWidth;
+        h = vpWidth / aspect;
+      } else {
+        h = vpHeight;
+        w = vpHeight * aspect;
+      }
+    } else {
+      if (aspect > vpAspect) {
+        h = vpHeight;
+        w = vpHeight * aspect;
+      } else {
+        w = vpWidth;
+        h = w / aspect;
+      }
+    }
+    return { width: `${Math.round(w)}px`, height: `${Math.round(h)}px` };
+  };
+
+  const fitted = calculateFittedDimensions(vpSize.width, vpSize.height, imageAspect, fitMode);
+
   const handleTriggerReanalysis = (overrideConf) => {
     if (!onRunAnalysis || !surveyFile || isAnalyzing) return;
     const finalCutoff = overrideConf != null ? overrideConf : confidenceCutoff;
@@ -379,7 +429,10 @@ export default function DetectionsView({
             </div>
 
             {/* Sonar Viewport with Clean Scientific Bounding Boxes */}
-            <div className="relative h-[340px] sm:h-[420px] lg:h-[460px] bg-[#02050c] border-x border-b border-[#1a2638] rounded-b-sm overflow-hidden select-none flex items-center justify-center p-1">
+            <div
+              ref={viewportRef}
+              className="relative h-[340px] sm:h-[420px] lg:h-[460px] bg-[#02050c] border-x border-b border-[#1a2638] rounded-b-sm overflow-hidden select-none flex items-center justify-center p-1"
+            >
               <div 
                 className="absolute inset-0 opacity-60 pointer-events-none"
                 style={{
@@ -390,11 +443,12 @@ export default function DetectionsView({
 
               {/* Aspect-Ratio-Preserving Swath Container */}
               <div
-                className="relative transition-transform duration-75 flex items-center justify-center max-w-full max-h-full"
+                className="relative transition-transform duration-75 flex items-center justify-center shrink-0"
                 style={{
-                  aspectRatio: fitMode === 'contain' && imageAspect ? `${imageAspect}` : undefined,
-                  width: fitMode === 'cover' ? '100%' : undefined,
-                  height: fitMode === 'cover' ? '100%' : undefined,
+                  width: fitted.width,
+                  height: fitted.height,
+                  maxWidth: '100%',
+                  maxHeight: '100%'
                 }}
               >
                 {imageUrl && (
@@ -406,9 +460,7 @@ export default function DetectionsView({
                         setImageAspect(e.target.naturalWidth / e.target.naturalHeight);
                       }
                     }}
-                    className={`w-full h-full pointer-events-none opacity-90 contrast-125 block ${
-                      fitMode === 'contain' ? 'object-fill' : 'object-cover'
-                    }`}
+                    className="w-full h-full pointer-events-none opacity-90 contrast-125 block object-fill select-none"
                     onError={(e) => {
                       if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
                         e.target.src = URL.createObjectURL(surveyFile);

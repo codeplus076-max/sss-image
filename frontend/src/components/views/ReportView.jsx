@@ -21,6 +21,90 @@ import {
 } from '../../data/reportData';
 import { API_BASE_URL } from '../../services/api';
 
+function SonarRoiCrop({ imageUrl, bbox, fallbackText }) {
+  const canvasRef = React.useRef(null);
+  const [hasDrawn, setHasDrawn] = useState(false);
+
+  useEffect(() => {
+    if (!imageUrl || !bbox) return;
+    let isCancelled = false;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = imageUrl;
+
+    img.onload = () => {
+      if (isCancelled) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = img.naturalWidth || 1000;
+      const h = img.naturalHeight || 500;
+
+      const rawBx = Number(bbox.x ?? (bbox.norm_x1 != null ? bbox.norm_x1 * 100 : 0));
+      const rawBy = Number(bbox.y ?? (bbox.norm_y1 != null ? bbox.norm_y1 * 100 : 0));
+      const rawBw = Number(bbox.w ?? (bbox.norm_w != null ? bbox.norm_w * 100 : 10));
+      const rawBh = Number(bbox.h ?? (bbox.norm_h != null ? bbox.norm_h * 100 : 10));
+
+      const bx = Math.max(0, Math.min(100, isNaN(rawBx) ? 0 : rawBx));
+      const by = Math.max(0, Math.min(100, isNaN(rawBy) ? 0 : rawBy));
+      const bw = Math.max(1, Math.min(100 - bx, isNaN(rawBw) ? 10 : rawBw));
+      const bh = Math.max(1, Math.min(100 - by, isNaN(rawBh) ? 10 : rawBh));
+
+      const padX = Math.max(bw * 0.5, 4);
+      const padY = Math.max(bh * 0.5, 4);
+
+      const sx = Math.max(0, ((bx - padX) / 100) * w);
+      const sy = Math.max(0, ((by - padY) / 100) * h);
+      const sw = Math.min(w - sx, ((bw + 2 * padX) / 100) * w);
+      const sh = Math.min(h - sy, ((bh + 2 * padY) / 100) * h);
+
+      canvas.width = 320;
+      canvas.height = 140;
+
+      ctx.fillStyle = '#020509';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+      const retX = ((padX) / (bw + 2 * padX)) * canvas.width;
+      const retY = ((padY) / (bh + 2 * padY)) * canvas.height;
+      const retW = (bw / (bw + 2 * padX)) * canvas.width;
+      const retH = (bh / (bh + 2 * padY)) * canvas.height;
+
+      ctx.strokeStyle = '#2dd4bf';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(retX, retY, retW, retH);
+
+      setHasDrawn(true);
+    };
+
+    return () => { isCancelled = true; };
+  }, [imageUrl, bbox]);
+
+  return (
+    <div className="relative w-full h-28 bg-[#020509] border border-[#1a2638] rounded-sm overflow-hidden flex items-center justify-center">
+      <canvas ref={canvasRef} className={`w-full h-full object-contain ${hasDrawn ? 'block' : 'hidden'}`} />
+      {!hasDrawn && (
+        <div className="relative z-10 w-full flex items-center justify-between text-[10px] p-2.5">
+          <div className="space-y-0.5">
+            <span className="text-primary font-bold block">ACOUSTIC ROI TARGET</span>
+            <span className="text-[#8ea4bf] text-[9px] block max-w-[210px] truncate">
+              {fallbackText || 'Correlating sonar backscatter echo'}
+            </span>
+          </div>
+          <div className="w-8 h-8 border border-primary/60 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0 ml-2">
+            <Crosshair className="w-4 h-4 animate-pulse" />
+          </div>
+        </div>
+      )}
+      <div className="absolute top-1 left-1.5 px-1 py-0.2 bg-[#060911]/90 rounded border border-[#1a2638] text-[8px] font-mono text-primary z-10">
+        EVIDENCE ROI (SPECULAR ECHO & SHADOW)
+      </div>
+    </div>
+  );
+}
+
 export default function ReportView({ 
   anomalies, 
   selectedAnomalyId,
@@ -552,32 +636,11 @@ export default function ReportView({
                       EVIDENCE: CORRESPONDING SONAR CROP
                     </span>
                     
-                    <div className="relative h-28 bg-[#02050a] border border-[#1a2638] rounded-sm overflow-hidden flex items-center justify-center">
-                      <img
-                        src={uploadedImageUrl || activeDetection.evidence_image}
-                        alt={activeDetection.classification}
-                        className="w-full h-full object-cover opacity-60 filter contrast-125 saturate-50"
-                        onError={(e) => {
-                          if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
-                            e.target.src = URL.createObjectURL(surveyFile);
-                          } else {
-                            e.target.style.display = 'none';
-                          }
-                        }}
-                      />
-                      
-                      <div className="absolute inset-3 border border-primary/60 rounded-sm flex flex-col justify-between p-1.5 pointer-events-none">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[8px] bg-[#030814]/90 px-1 rounded-sm text-primary">
-                            ROI #{activeDetection.detection_id}
-                          </span>
-                          <Crosshair className="w-3 h-3 text-primary" />
-                        </div>
-                        <span className="text-[8px] text-[#8ea4bf] bg-[#030814]/80 px-1 rounded-sm self-start">
-                          {activeDetection.image_position?.display}
-                        </span>
-                      </div>
-                    </div>
+                    <SonarRoiCrop
+                      imageUrl={uploadedImageUrl || activeDetection.evidence_image}
+                      bbox={activeDetection.bbox || activeDetection.box}
+                      fallbackText={activeDetection.acoustic_feature}
+                    />
 
                     <p className="mt-1.5 text-[10px] text-[#8ea4bf] line-clamp-2">
                       {activeDetection.acoustic_feature}

@@ -40,10 +40,16 @@ function SonarRoiCrop({ imageUrl, bbox, fallbackText }) {
       const w = img.naturalWidth || 1000;
       const h = img.naturalHeight || 500;
 
-      const bx = Number(bbox.x || 0);
-      const by = Number(bbox.y || 0);
-      const bw = Number(bbox.w || bbox.width || 10);
-      const bh = Number(bbox.h || bbox.height || 10);
+      // Extract safe percentage coordinates (never fallback to pixel width/height)
+      const rawBx = Number(bbox.x ?? (bbox.norm_x1 != null ? bbox.norm_x1 * 100 : 0));
+      const rawBy = Number(bbox.y ?? (bbox.norm_y1 != null ? bbox.norm_y1 * 100 : 0));
+      const rawBw = Number(bbox.w ?? (bbox.norm_w != null ? bbox.norm_w * 100 : 10));
+      const rawBh = Number(bbox.h ?? (bbox.norm_h != null ? bbox.norm_h * 100 : 10));
+
+      const bx = Math.max(0, Math.min(100, isNaN(rawBx) ? 0 : rawBx));
+      const by = Math.max(0, Math.min(100, isNaN(rawBy) ? 0 : rawBy));
+      const bw = Math.max(1, Math.min(100 - bx, isNaN(rawBw) ? 10 : rawBw));
+      const bh = Math.max(1, Math.min(100 - by, isNaN(rawBh) ? 10 : rawBh));
 
       const padX = Math.max(bw * 0.5, 4);
       const padY = Math.max(bh * 0.5, 4);
@@ -143,6 +149,73 @@ export default function WorkspaceView({
   const [fitMode, setFitMode] = useState('contain');
   const [imageAspect, setImageAspect] = useState(null);
   const [isReclassifying, setIsReclassifying] = useState(false);
+
+  // Measure viewports dynamically so image container exactly matches scaled pixel aspect ratio
+  const splitViewportRef = React.useRef(null);
+  const fullViewportRef = React.useRef(null);
+  const [splitVpSize, setSplitVpSize] = useState({ width: 0, height: 0 });
+  const [fullVpSize, setFullVpSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const el = splitViewportRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width && height) setSplitVpSize({ width, height });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [activeLayoutTab]);
+
+  useEffect(() => {
+    const el = fullViewportRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width && height) setFullVpSize({ width, height });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [activeLayoutTab]);
+
+  useEffect(() => {
+    if (analysisResult?.image?.width && analysisResult?.image?.height) {
+      setImageAspect(analysisResult.image.width / analysisResult.image.height);
+    }
+  }, [analysisResult]);
+
+  const calculateFittedDimensions = (vpWidth, vpHeight, aspect, mode) => {
+    if (!vpWidth || !vpHeight || !aspect) {
+      return { width: '100%', height: '100%' };
+    }
+    const vpAspect = vpWidth / vpHeight;
+    let w, h;
+    if (mode === 'contain') {
+      if (aspect > vpAspect) {
+        w = vpWidth;
+        h = vpWidth / aspect;
+      } else {
+        h = vpHeight;
+        w = vpHeight * aspect;
+      }
+    } else {
+      if (aspect > vpAspect) {
+        h = vpHeight;
+        w = vpHeight * aspect;
+      } else {
+        w = vpWidth;
+        h = w / aspect;
+      }
+    }
+    return { width: `${Math.round(w)}px`, height: `${Math.round(h)}px` };
+  };
+
+  const splitFitted = calculateFittedDimensions(splitVpSize.width, splitVpSize.height, imageAspect, fitMode);
+  const fullFitted = calculateFittedDimensions(fullVpSize.width, fullVpSize.height, imageAspect, fitMode);
 
   const handleReclassify = (detId, newClassName) => {
     soundFx.playTargetLock();
@@ -545,6 +618,7 @@ export default function WorkspaceView({
 
               {/* Viewport with Zoom and Pan */}
               <div
+                ref={splitViewportRef}
                 className="relative flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing bg-[#02050c] flex items-center justify-center p-0.5"
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
@@ -552,11 +626,12 @@ export default function WorkspaceView({
                 onMouseLeave={handleMouseUp}
               >
                 <div
-                  className="relative transition-transform duration-75 flex items-center justify-center max-w-full max-h-full"
+                  className="relative transition-transform duration-75 flex items-center justify-center shrink-0"
                   style={{
-                    aspectRatio: fitMode === 'contain' && imageAspect ? `${imageAspect}` : undefined,
-                    width: fitMode === 'cover' ? '100%' : undefined,
-                    height: fitMode === 'cover' ? '100%' : undefined,
+                    width: splitFitted.width,
+                    height: splitFitted.height,
+                    maxWidth: '100%',
+                    maxHeight: '100%',
                     transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
                     transformOrigin: '50% 50%'
                   }}
@@ -579,9 +654,7 @@ export default function WorkspaceView({
                           setImageAspect(e.target.naturalWidth / e.target.naturalHeight);
                         }
                       }}
-                      className={`w-full h-full pointer-events-none opacity-90 contrast-125 block ${
-                        fitMode === 'contain' ? 'object-fill' : 'object-cover'
-                      }`}
+                      className="w-full h-full pointer-events-none opacity-90 contrast-125 block object-fill select-none"
                       onError={(e) => {
                         if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
                           e.target.src = URL.createObjectURL(surveyFile);
@@ -681,6 +754,7 @@ export default function WorkspaceView({
             </div>
 
             <div
+              ref={fullViewportRef}
               className="relative flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing bg-[#02050c] flex items-center justify-center p-1"
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -688,11 +762,12 @@ export default function WorkspaceView({
               onMouseLeave={handleMouseUp}
             >
               <div
-                className="relative transition-transform duration-75 flex items-center justify-center max-w-full max-h-full"
+                className="relative transition-transform duration-75 flex items-center justify-center shrink-0"
                 style={{
-                  aspectRatio: fitMode === 'contain' && imageAspect ? `${imageAspect}` : undefined,
-                  width: fitMode === 'cover' ? '100%' : undefined,
-                  height: fitMode === 'cover' ? '100%' : undefined,
+                  width: fullFitted.width,
+                  height: fullFitted.height,
+                  maxWidth: '100%',
+                  maxHeight: '100%',
                   transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
                   transformOrigin: '50% 50%'
                 }}
@@ -706,9 +781,7 @@ export default function WorkspaceView({
                         setImageAspect(e.target.naturalWidth / e.target.naturalHeight);
                       }
                     }}
-                    className={`w-full h-full pointer-events-none opacity-90 contrast-125 block ${
-                      fitMode === 'contain' ? 'object-fill' : 'object-cover'
-                    }`}
+                    className="w-full h-full pointer-events-none opacity-90 contrast-125 block object-fill select-none"
                     onError={(e) => {
                       if (surveyFile && (surveyFile instanceof File || surveyFile instanceof Blob)) {
                         e.target.src = URL.createObjectURL(surveyFile);

@@ -22,9 +22,13 @@ NORMALIZATION_MAP: Dict[str, str] = {
     "Pipeline": "Subsea Pipeline",
     "Cylinder": "Cylinder",
     "Shipwreck": "Shipwreck",
+    "shipwreck": "Shipwreck",
+    "Maritime Shipwreck / Hull": "Shipwreck",
     "MILCO": "Mine-Like Contact",
     "NOMBO": "Non-Mine Mine-Like Bottom Object",
     "Class_0": "Class_0 (Unknown / Unlabeled)",
+    "Acoustic Anomaly": "Acoustic Anomaly",
+    "Acoustic Contrast Anomaly (Highlight/Shadow)": "Acoustic Anomaly",
 }
 
 CATEGORY_MAP: Dict[str, str] = {
@@ -32,9 +36,13 @@ CATEGORY_MAP: Dict[str, str] = {
     "Pipeline": "Subsea Pipeline",
     "Cylinder": "Cylinder",
     "Shipwreck": "Shipwreck",
+    "shipwreck": "Shipwreck",
+    "Maritime Shipwreck / Hull": "Shipwreck",
     "MILCO": "Mine-Like Contact",
     "NOMBO": "Non-Mine Mine-Like Bottom Object",
     "Class_0": "Unknown / Unlabeled Artifact",
+    "Acoustic Anomaly": "Acoustic Anomaly",
+    "Acoustic Contrast Anomaly (Highlight/Shadow)": "Acoustic Anomaly",
 }
 
 # Rule-based operator operational review priority mapping
@@ -44,6 +52,10 @@ PRIORITY_RULES: Dict[str, Tuple[str, str]] = {
     "NOMBO": ("HIGH", "Non-mine mine-like bottom object requires operator review."),
     "Non-Mine Mine-Like Bottom Object": ("HIGH", "Non-mine mine-like bottom object requires operator review."),
     "Shipwreck": ("HIGH", "Shipwreck detected; operator review recommended."),
+    "shipwreck": ("HIGH", "Shipwreck detected; operator review recommended."),
+    "Maritime Shipwreck / Hull": ("HIGH", "Shipwreck detected; operator review recommended."),
+    "Acoustic Anomaly": ("HIGH", "Acoustic contrast anomaly confirmed; operator review recommended."),
+    "Acoustic Contrast Anomaly (Highlight/Shadow)": ("HIGH", "Acoustic contrast anomaly confirmed; operator review recommended."),
     "Pipeline": ("MEDIUM", "Subsea pipeline detected; infrastructure review recommended."),
     "Subsea Pipeline": ("MEDIUM", "Subsea pipeline detected; infrastructure review recommended."),
     "Crab-Pot": ("MEDIUM", "Ghost gear detected; environmental/operational review recommended."),

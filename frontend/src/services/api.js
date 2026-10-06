@@ -65,13 +65,27 @@ export function mapBackendDetection(rawDet, index = 0, analysisId = null) {
     confidenceVal = rawDet.confidence <= 1.0 ? Math.round(rawDet.confidence * 1000) / 10 : rawDet.confidence;
   }
 
-  // Normalized percentage box coordinates for CSS overlays
-  const box = {
-    x: rawDet.bbox?.x ?? 0,
-    y: rawDet.bbox?.y ?? 0,
-    w: rawDet.bbox?.w ?? 0,
-    h: rawDet.bbox?.h ?? 0
-  };
+  // Extract normalized percentage box coordinates [0 - 100%] for pixel-perfect CSS overlays
+  let bx = 0, by = 0, bw = 0, bh = 0;
+  if (rawDet.bbox) {
+    if (typeof rawDet.bbox.x === 'number' && typeof rawDet.bbox.w === 'number') {
+      bx = rawDet.bbox.x;
+      by = rawDet.bbox.y;
+      bw = rawDet.bbox.w;
+      bh = rawDet.bbox.h;
+    } else if (typeof rawDet.bbox.norm_x1 === 'number') {
+      bx = rawDet.bbox.norm_x1 * 100;
+      by = rawDet.bbox.norm_y1 * 100;
+      bw = (rawDet.bbox.norm_w ?? (rawDet.bbox.norm_x2 ? rawDet.bbox.norm_x2 - rawDet.bbox.norm_x1 : 0.1)) * 100;
+      bh = (rawDet.bbox.norm_h ?? (rawDet.bbox.norm_y2 ? rawDet.bbox.norm_y2 - rawDet.bbox.norm_y1 : 0.1)) * 100;
+    }
+  }
+  bx = Math.max(0, Math.min(100, bx));
+  by = Math.max(0, Math.min(100, by));
+  bw = Math.max(0, Math.min(100 - bx, bw));
+  bh = Math.max(0, Math.min(100 - by, bh));
+
+  const box = { x: bx, y: by, w: bw, h: bh };
 
   const hasGeo = rawDet.latitude != null && rawDet.longitude != null;
   const evidenceUrl = rawDet.evidenceImage 

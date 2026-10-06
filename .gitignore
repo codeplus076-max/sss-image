@@ -48,7 +48,11 @@ logs/
 # Temporary test/scratch scratchpads
 scratch/
 *.zip
+*.mp4
 backend/models/natural_seabed.pt
+backend/models/*_backup*
+backend/models/*_old*
+backend/models/*_v2*
 *_crop.png
 backend/*_crop.png
 
