@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import TopAppBar from './components/TopAppBar';
 import ExploreLanding from './components/views/ExploreLanding';
 import WorkspaceView from './components/views/WorkspaceView';
@@ -33,6 +33,7 @@ export default function App() {
   const [batchResults, setBatchResults] = useState(null);
   const [isBatchScanning, setIsBatchScanning] = useState(false);
   const [batchScanProgress, setBatchScanProgress] = useState(null);
+  const batchAbortControllerRef = useRef(null);
 
   // Backend Integration State
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -271,8 +272,24 @@ export default function App() {
     }));
   }, []);
 
+  // Cancel Active Batch Screening
+  const handleCancelBatchScan = useCallback(() => {
+    if (batchAbortControllerRef.current) {
+      batchAbortControllerRef.current.abort();
+      batchAbortControllerRef.current = null;
+    }
+    setIsBatchScanning(false);
+  }, []);
+
   // Batch Anomaly Screening Handler
   const handleStartBatchScreening = useCallback(async (files, options = {}) => {
+    // 1. Immediately abort any existing active batch scan
+    if (batchAbortControllerRef.current) {
+      batchAbortControllerRef.current.abort();
+    }
+    const currentAbortController = new AbortController();
+    batchAbortControllerRef.current = currentAbortController;
+
     soundFx.playTargetLock();
     // Sort files in natural numerical order (e.g. 01, 02, ... 15) so progress is strictly sequential
     const sortedFiles = [...(files || [])].sort((a, b) =>
@@ -291,9 +308,21 @@ export default function App() {
     setCurrentView('view-batch-triage');
 
     try {
-      const results = await analyzeBatchSonarImages(sortedFiles, options, (progress) => {
-        setBatchScanProgress(progress);
-      });
+      const results = await analyzeBatchSonarImages(
+        sortedFiles, 
+        { ...options, signal: currentAbortController.signal }, 
+        (progress) => {
+          if (!currentAbortController.signal.aborted) {
+            setBatchScanProgress(progress);
+          }
+        }
+      );
+
+      // If this batch run was superseded by another scan or cancelled, ignore obsolete results
+      if (currentAbortController.signal.aborted) {
+        return;
+      }
+
       setBatchResults(results);
       soundFx.playTargetLock();
 
@@ -311,11 +340,27 @@ export default function App() {
         ]);
       }
     } catch (err) {
+      if (currentAbortController.signal.aborted || err?.name === 'AbortError') {
+        console.info('Previous batch screening superseded or cancelled.');
+        return;
+      }
       console.warn('Batch screening error:', err);
       setAnalysisError(err.userFriendlyMessage || err.message || 'Batch screening failed.');
     } finally {
-      setIsBatchScanning(false);
+      if (batchAbortControllerRef.current === currentAbortController) {
+        setIsBatchScanning(false);
+        batchAbortControllerRef.current = null;
+      }
     }
+  }, []);
+
+  // Clean up any pending batch scans on unmount
+  useEffect(() => {
+    return () => {
+      if (batchAbortControllerRef.current) {
+        batchAbortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   // Inspect specific item from batch triage
@@ -409,7 +454,11 @@ export default function App() {
               isScanning={isBatchScanning}
               scanProgress={batchScanProgress}
               onInspectImage={handleInspectBatchItem}
-              onNewBatchScan={() => setCurrentView('view-ingest')}
+              onNewBatchScan={() => {
+                handleCancelBatchScan();
+                setCurrentView('view-ingest');
+              }}
+              onCancelScan={handleCancelBatchScan}
               onNavigate={setCurrentView}
             />
           </div>

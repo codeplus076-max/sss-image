@@ -56,7 +56,14 @@ def _get_hf_client():
 
 
 def _normalize_image_input(image: Union[np.ndarray, Image.Image, str, Path]) -> Tuple[Any, int, int]:
-    """Inspect and normalize input image, returning (image_for_yolo, width, height)."""
+    """Inspect and normalize input image, returning (image_for_yolo, width, height).
+
+    Ultralytics YOLO model.predict() expects numpy arrays in BGR format (standard
+    OpenCV convention) and converts them BGR -> RGB internally. Since PIL images and
+    preprocessed sonar swaths provide RGB format, 3-channel numpy arrays are converted
+    to BGR so Ultralytics receives the proper channel alignment and does not invert
+    color channels on sensitive ONNX detectors (such as naval mines).
+    """
     if isinstance(image, (str, Path)):
         img_path = Path(image)
         if not img_path.exists():
@@ -67,11 +74,13 @@ def _normalize_image_input(image: Union[np.ndarray, Image.Image, str, Path]) -> 
 
     elif isinstance(image, Image.Image):
         w, h = image.size
-        # Convert PIL to RGB numpy array for reliable Ultralytics processing
-        return np.array(image.convert("RGB")), w, h
+        rgb = np.array(image.convert("RGB"))
+        return rgb[..., ::-1].copy(), w, h
 
     elif isinstance(image, np.ndarray):
         h, w = image.shape[:2]
+        if len(image.shape) == 3 and image.shape[2] == 3:
+            return image[..., ::-1].copy(), w, h
         return image, w, h
 
     else:
@@ -109,8 +118,12 @@ class InferenceService:
                 temp_path = str(image)
                 cleanup = False
             else:
-                if isinstance(img_for_yolo, np.ndarray):
-                    pil_img = Image.fromarray(img_for_yolo)
+                if isinstance(image, Image.Image):
+                    pil_img = image
+                elif isinstance(image, np.ndarray):
+                    pil_img = Image.fromarray(image)
+                elif isinstance(img_for_yolo, np.ndarray):
+                    pil_img = Image.fromarray(img_for_yolo[..., ::-1])
                 else:
                     pil_img = Image.open(img_for_yolo)
                 with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
@@ -231,8 +244,12 @@ class InferenceService:
                 temp_path = str(image)
                 cleanup = False
             else:
-                if isinstance(img_for_yolo, np.ndarray):
-                    pil_img = Image.fromarray(img_for_yolo)
+                if isinstance(image, Image.Image):
+                    pil_img = image
+                elif isinstance(image, np.ndarray):
+                    pil_img = Image.fromarray(image)
+                elif isinstance(img_for_yolo, np.ndarray):
+                    pil_img = Image.fromarray(img_for_yolo[..., ::-1])
                 else:
                     pil_img = Image.open(img_for_yolo)
                 with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:

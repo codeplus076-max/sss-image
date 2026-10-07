@@ -392,15 +392,18 @@ def _roi_reverify_detections(
                     )
                     continue
 
-            # High-confidence exemption or macro shipwreck exemption:
-            # natural_seabed.pt is trained strictly on natural seafloor vs small ordnance debris,
-            # not large shipwrecks, and falsely labels steel/wooden hull textures as clean seabed.
-            # Shipwrecks that have passed the physics guards above are preserved.
+            # High-confidence exemption, macro shipwreck exemption, or ordnance exemption:
+            # natural_seabed.pt is trained on broad seabed swaths (clean vs anomalous debris).
+            # Small tactical targets (MILCO, naval mines, NOMBO, cylinders) and shipwrecks sit directly
+            # on sandy or muddy seafloor; an ROI crop around them is dominated by seabed texture and
+            # must not be discarded by the seabed classifier. Detections that pass the physical sensor
+            # guards above are preserved.
             is_shipwreck = "shipwreck" in det.raw_class_name.lower()
-            if conf >= HIGH_CONF_EXEMPT or is_shipwreck:
+            is_ordnance = any(k in det.raw_class_name.lower() for k in ["milco", "mine", "nombo", "cylinder", "torpedo"])
+            if conf >= HIGH_CONF_EXEMPT or is_shipwreck or is_ordnance:
                 kept.append(det)
                 logger.debug(
-                    f"[ROI Re-verify] KEPT '{det.semantic_class_name}' (conf={conf:.3f}, is_shipwreck={is_shipwreck})"
+                    f"[ROI Re-verify] KEPT '{det.semantic_class_name}' (conf={conf:.3f}, is_shipwreck={is_shipwreck}, is_ordnance={is_ordnance})"
                 )
                 continue
 

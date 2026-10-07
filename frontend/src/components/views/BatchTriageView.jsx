@@ -16,7 +16,8 @@ import {
   ChevronRight,
   ShieldCheck,
   Search,
-  Database
+  Database,
+  XCircle
 } from 'lucide-react';
 import { soundFx } from '../../utils/audio';
 
@@ -26,6 +27,7 @@ export default function BatchTriageView({
   scanProgress,
   onInspectImage,
   onNewBatchScan,
+  onCancelScan,
   onNavigate
 }) {
   const [activeTab, setActiveTab] = useState('flagged'); // 'flagged' | 'clean' | 'failed' | 'all'
@@ -150,6 +152,19 @@ export default function BatchTriageView({
           </div>
 
           <div className="flex items-center space-x-3">
+            {isScanning && (
+              <button
+                onClick={() => {
+                  soundFx.playWarning();
+                  onCancelScan?.();
+                }}
+                className="flex items-center space-x-2 px-3.5 py-2 rounded-sm bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 text-xs font-mono text-red-300 hover:text-white transition-colors cursor-pointer"
+                title="Immediately halt active batch scanning"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                <span>Cancel Scan</span>
+              </button>
+            )}
             <button
               onClick={onNewBatchScan}
               className="flex items-center space-x-2 px-3.5 py-2 rounded-sm bg-[#0c1424] hover:bg-[#132038] border border-white/[0.1] text-xs font-mono text-[#cbd5e1] hover:text-white transition-colors cursor-pointer"
@@ -187,7 +202,19 @@ export default function BatchTriageView({
                   ({scanProgress?.filename})
                 </span>
               </div>
-              <span className="text-primary font-bold">{scanProgress?.progress || 0}%</span>
+              <div className="flex items-center space-x-3">
+                <span className="text-primary font-bold">{scanProgress?.progress || 0}%</span>
+                <button
+                  onClick={() => {
+                    soundFx.playWarning();
+                    onCancelScan?.();
+                  }}
+                  className="px-2.5 py-0.5 rounded text-[11px] font-mono uppercase bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 transition-colors cursor-pointer"
+                  title="Stop scan immediately"
+                >
+                  Stop
+                </button>
+              </div>
             </div>
 
             <div className="w-full bg-[#131d2e] h-2 rounded-full overflow-hidden">

@@ -150,15 +150,22 @@ export function mapBackendDetection(rawDet, index = 0, analysisId = null) {
 /**
  * Polls an asynchronous analysis job until completion or timeout
  */
-export async function pollAnalysisJob(jobId, onProgress = null, maxTimeoutMs = 180000) {
+export async function pollAnalysisJob(jobId, onProgress = null, maxTimeoutMs = 180000, signal = null) {
   const startTime = Date.now();
   const pollIntervalMs = 1500;
 
   while (Date.now() - startTime < maxTimeoutMs) {
+    if (signal?.aborted) {
+      throw new DOMException('Analysis polling was aborted', 'AbortError');
+    }
+
     let response;
     try {
-      response = await fetch(`${API_BASE_URL}/api/v1/analysis/jobs/${jobId}`);
+      response = await fetch(`${API_BASE_URL}/api/v1/analysis/jobs/${jobId}`, { signal });
     } catch (err) {
+      if (signal?.aborted || err?.name === 'AbortError') {
+        throw new DOMException('Analysis polling was aborted', 'AbortError');
+      }
       await new Promise((r) => setTimeout(r, pollIntervalMs));
       continue;
     }
@@ -292,6 +299,7 @@ export async function analyzeSonarImage(imageFile, options = {}) {
     throw new ApiError('No file provided for analysis.', 400);
   }
 
+  const signal = options?.signal;
   const uploadFile = await optimizeImageForUpload(imageFile);
   const formData = new FormData();
   formData.append('image', uploadFile, uploadFile.name || 'sonar_input.jpg');
@@ -318,15 +326,19 @@ export async function analyzeSonarImage(imageFile, options = {}) {
     const jobSubmitResponse = await fetch(`${API_BASE_URL}/api/v1/analysis/jobs`, {
       method: 'POST',
       body: formData,
+      signal,
     });
 
     if (jobSubmitResponse.status === 202) {
       const submission = await jobSubmitResponse.json();
-      return await pollAnalysisJob(submission.job_id, options.onProgress);
+      return await pollAnalysisJob(submission.job_id, options.onProgress, 180000, signal);
     }
 
     await handleResponseErrors(jobSubmitResponse);
   } catch (err) {
+    if (signal?.aborted || err?.name === 'AbortError') {
+      throw new DOMException('Analysis was aborted', 'AbortError');
+    }
     if (err instanceof ApiError || err instanceof SonarValidationError) {
       throw err;
     }
@@ -339,8 +351,12 @@ export async function analyzeSonarImage(imageFile, options = {}) {
     response = await fetch(`${API_BASE_URL}/api/v1/analysis/analyze`, {
       method: 'POST',
       body: formData,
+      signal,
     });
   } catch (err) {
+    if (signal?.aborted || err?.name === 'AbortError') {
+      throw new DOMException('Analysis was aborted', 'AbortError');
+    }
     throw new ApiError(
       `Network connection failed: ${err.message}`,
       0,
@@ -374,6 +390,7 @@ export async function analyzeBatchSonarImages(imageFiles = [], options = {}, onP
     throw new ApiError('No files provided for batch analysis.', 400);
   }
 
+  const signal = options?.signal;
   const total = imageFiles.length;
   const results = [];
   const flagged = [];
@@ -381,6 +398,11 @@ export async function analyzeBatchSonarImages(imageFiles = [], options = {}, onP
   const failed = [];
 
   for (let i = 0; i < total; i++) {
+    if (signal?.aborted) {
+      console.info('Batch analysis stopped early due to abort signal.');
+      break;
+    }
+
     const file = imageFiles[i];
     const previewUrl = URL.createObjectURL(file);
 
@@ -401,7 +423,9 @@ export async function analyzeBatchSonarImages(imageFiles = [], options = {}, onP
     const batchOptions = { ...(options || {}) };
 
     try {
-      const result = await analyzeSonarImage(file, batchOptions);
+      const result = await analyzeSonarImage(file, { ...batchOptions, signal });
+      if (signal?.aborted) break;
+
       const rawDetections = result?.detections || [];
       const detections = rawDetections.map((d, idx) =>
         mapBackendDetection(d, idx, result.analysis_id)
@@ -433,6 +457,10 @@ export async function analyzeBatchSonarImages(imageFiles = [], options = {}, onP
         clean.push(record);
       }
     } catch (err) {
+      if (signal?.aborted || err?.name === 'AbortError') {
+        console.info(`Batch processing aborted on file ${file.name}`);
+        break;
+      }
       console.warn(`Batch item ${file.name} failed:`, err);
       const failedItem = {
         id: `ERR-${i + 1}`,
@@ -451,7 +479,8 @@ export async function analyzeBatchSonarImages(imageFiles = [], options = {}, onP
     }
   }
 
-  if (onProgress && typeof onProgress === 'function') {
+  const isCompleted = !signal?.aborted && (results.length + failed.length >= total);
+  if (onProgress && typeof onProgress === 'function' && !signal?.aborted) {
     onProgress({
       currentIndex: total,
       total,
@@ -463,7 +492,10 @@ export async function analyzeBatchSonarImages(imageFiles = [], options = {}, onP
   }
 
   return {
-    totalScanned: total,
+    totalScanned: results.length + failed.length,
+    totalPlanned: total,
+    isAborted: Boolean(signal?.aborted),
+    isCompleted,
     flaggedCount: flagged.length,
     cleanCount: clean.length,
     failedCount: failed.length,
