@@ -390,11 +390,15 @@ def _roi_reverify_detections(
                     )
                     continue
 
-            # High-confidence exemption: don't suppress if detector is very confident (>= 0.75)
-            if conf >= HIGH_CONF_EXEMPT:
+            # High-confidence exemption or macro shipwreck exemption:
+            # natural_seabed.pt is trained strictly on natural seafloor vs small ordnance debris,
+            # not large shipwrecks, and falsely labels steel/wooden hull textures as clean seabed.
+            # Shipwrecks that have passed the physics guards above are preserved.
+            is_shipwreck = "shipwreck" in det.raw_class_name.lower()
+            if conf >= HIGH_CONF_EXEMPT or is_shipwreck:
                 kept.append(det)
                 logger.debug(
-                    f"[ROI Re-verify] EXEMPT '{det.semantic_class_name}' (conf={conf:.3f} >= {HIGH_CONF_EXEMPT}) → kept"
+                    f"[ROI Re-verify] KEPT '{det.semantic_class_name}' (conf={conf:.3f}, is_shipwreck={is_shipwreck})"
                 )
                 continue
 
