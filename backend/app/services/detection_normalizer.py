@@ -149,11 +149,23 @@ def deduplicate_cross_model_detections(
     if len(detections) <= 1:
         return detections
 
-    # Score function: confidence + operational safety bias to prioritize domain-specific hazards (e.g. Shipwreck, Mines)
+    # Score function: raw confidence + physical scale consistency (compact objects favor compact detectors)
     def priority_score(d: DetectionResult) -> float:
-        p_rank, _ = determine_detection_priority(d.raw_class_name)
-        weight = 0.35 if p_rank == "HIGH" else (0.15 if p_rank == "MEDIUM" else 0.0)
-        return float(d.confidence) + weight
+        score = float(d.confidence)
+        bbox = d.bounding_box
+        is_compact = (bbox.norm_w * bbox.norm_h < 0.02) or (bbox.width < 160 and bbox.height < 160)
+        raw_lower = (d.raw_class_name or "").lower()
+
+        if is_compact:
+            if any(k in raw_lower for k in ["cylinder", "milco", "mine", "nombo"]):
+                score += 0.20  # Compact models preferred for compact targets
+            elif "shipwreck" in raw_lower:
+                score -= 0.20  # Shipwrecks are macro structures, penalize tiny hulls
+        else:
+            if "shipwreck" in raw_lower or "pipeline" in raw_lower:
+                score += 0.15  # Macro-structure models preferred for large spatial contacts
+
+        return score
 
     sorted_dets = sorted(detections, key=priority_score, reverse=True)
     kept: List[DetectionResult] = []

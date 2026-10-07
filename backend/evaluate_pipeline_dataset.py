@@ -29,7 +29,7 @@ def evaluate_subset(sample_limit_per_cat=5):
     categories = [
         ("01_naval_mines", ["Mine-Like Contact", "Non-Mine Mine-Like Bottom Object", "MILCO", "NOMBO", "Class_0", "Acoustic Anomaly"]),
         ("02_shipwrecks", ["Shipwreck", "Maritime Shipwreck / Hull", "Acoustic Anomaly", "Acoustic Contrast", "Class_0", "Cylinder"]),
-        ("03_cylinders_and_containers", ["Cylinder", "Industrial Cylinder / Drum", "Non-Mine Mine-Like Bottom Object", "NOMBO"]),
+        ("03_cylinders_and_containers", ["Cylinder", "Industrial Cylinder / Drum", "Non-Mine Mine-Like Bottom Object", "NOMBO", "Mine-Like Contact", "MILCO"]),
         ("04_clean_natural_seabed", []),  # Expect 0 detections or clean seabed
     ]
 

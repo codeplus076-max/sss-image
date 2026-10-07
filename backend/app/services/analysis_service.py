@@ -194,19 +194,21 @@ class AnalysisService:
                             unload_model(model_def.key)
                     gc.collect()
 
-        # Conservative cross-model deduplication for overlapping models
-        active_detections = deduplicate_cross_model_detections(raw_detections, iou_threshold=0.50)
-
-        # ROI-level re-verification: classify each detection's crop against natural_seabed
-        # to eliminate false positives caused by textured seabed regions being flagged as anomalies.
-        if enable_roi_reverify and active_detections:
+        # ROI-level re-verification + physics guards: prune false alarms (voids, streaks, clean seabed)
+        # to eliminate false positives before cross-model spatial deduplication.
+        if enable_roi_reverify and raw_detections:
             if progress_callback:
                 progress_callback(0.88, "Running localized ROI re-verification to suppress false positives...")
-            active_detections = _roi_reverify_detections(
-                detections=active_detections,
+            verified_candidates = _roi_reverify_detections(
+                detections=raw_detections,
                 full_image=preprocessed.np_array,
                 clean_threshold=roi_clean_threshold,
             )
+        else:
+            verified_candidates = raw_detections
+
+        # Cross-model deduplication for overlapping models on remaining genuine contacts
+        active_detections = deduplicate_cross_model_detections(verified_candidates, iou_threshold=0.50)
 
         # If no verified specialized targets remain, check seabed anomaly screening:
         # If an uncatalogued anomaly or wreck structure is confirmed (p_anomaly > 0.60),
@@ -344,27 +346,57 @@ def _roi_reverify_detections(
             bbox = det.bounding_box
             conf = det.confidence
 
-            # High-confidence detections and verified shipwreck structures are exempt from ROI suppression
-            exempt_thresh = 0.18 if "shipwreck" in det.raw_class_name.lower() else 0.50
-            if conf >= exempt_thresh:
-                kept.append(det)
-                logger.debug(
-                    f"[ROI Re-verify] EXEMPT '{det.semantic_class_name}' (conf={conf:.3f} >= {exempt_thresh}) → kept"
-                )
-                continue
-
             # Extract pixel coords, clamped to image bounds
             x1 = max(0, int(bbox.x1))
             y1 = max(0, int(bbox.y1))
             x2 = min(w, int(bbox.x2))
             y2 = min(h, int(bbox.y2))
+            bw = x2 - x1
+            bh = y2 - y1
 
             # Safety guard: ensure crop has meaningful area
-            if (x2 - x1) < 8 or (y2 - y1) < 8:
+            if bw < 8 or bh < 8:
                 kept.append(det)
                 continue
 
+            # Physical Sonar Guard 1: Nadir / scanning stripe artifact (extreme horizontal stripe across swath or thin scanner sliver)
+            is_nadir_stripe = bw > 0.35 * w and (bw / max(1, bh)) > 4.0
+            is_thin_wreck_sliver = (
+                "shipwreck" in det.raw_class_name.lower()
+                and min(bw, bh) < 45
+                and (max(bw, bh) / max(1, min(bw, bh))) > 3.5
+            )
+            if is_nadir_stripe or is_thin_wreck_sliver:
+                logger.info(
+                    f"[Physics Guard] Suppressed scanning stripe / sliver artifact ({bw}x{bh}) for '{det.semantic_class_name}'"
+                )
+                continue
+
             roi_crop = full_image[y1:y2, x1:x2]
+
+            # Physical Sonar Guard 2: Acoustic dead-zone check (pitch-black water column void without acoustic reflection)
+            if roi_crop.size > 0:
+                crop_mean = float(roi_crop.mean())
+                if crop_mean < 22.0 and float(np.percentile(roi_crop, 95)) < 50.0:
+                    logger.info(
+                        f"[Physics Guard] Suppressed acoustic void / dead zone (mean={crop_mean:.1f}) for '{det.semantic_class_name}'"
+                    )
+                    continue
+
+                # Physical Sonar Guard 3: Margin / border watermark false alarms
+                if crop_mean > 230.0:
+                    logger.info(
+                        f"[Physics Guard] Suppressed margin / border artifact (mean={crop_mean:.1f}) for '{det.semantic_class_name}'"
+                    )
+                    continue
+
+            # High-confidence exemption: don't suppress if detector is very confident (>= 0.75)
+            if conf >= HIGH_CONF_EXEMPT:
+                kept.append(det)
+                logger.debug(
+                    f"[ROI Re-verify] EXEMPT '{det.semantic_class_name}' (conf={conf:.3f} >= {HIGH_CONF_EXEMPT}) → kept"
+                )
+                continue
 
             roi_result = inference_service.classify_seabed_roi(
                 roi=roi_crop,

@@ -40,10 +40,14 @@ def _get_hf_client():
         try:
             from gradio_client import Client
             token = settings.HF_TOKEN.strip() if settings.HF_TOKEN else None
+            headers = {"Authorization": f"Bearer {token}"} if token else None
             try:
-                _hf_client = Client(settings.HF_SPACE_ID, token=token)
-            except TypeError:
-                _hf_client = Client(settings.HF_SPACE_ID, hf_token=token)
+                _hf_client = Client(settings.HF_SPACE_ID, token=token, headers=headers)
+            except Exception:
+                try:
+                    _hf_client = Client(settings.HF_SPACE_ID, token=token)
+                except TypeError:
+                    _hf_client = Client(settings.HF_SPACE_ID, hf_token=token)
             logger.info(f"Connected to remote Hugging Face ZeroGPU engine: {settings.HF_SPACE_ID}")
         except Exception as e:
             logger.warning(f"Could not connect to HF Space {settings.HF_SPACE_ID}: {e}")
@@ -197,7 +201,7 @@ class InferenceService:
             logger.warning(
                 f"Remote ZeroGPU inference failed on model '{definition.key}', falling back to local: {e}"
             )
-            if temp_path and os.path.exists(temp_path):
+            if cleanup and temp_path and os.path.exists(temp_path):
                 try:
                     os.remove(temp_path)
                 except Exception:

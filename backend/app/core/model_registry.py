@@ -103,10 +103,10 @@ MODEL_REGISTRY: Dict[str, ModelDefinition] = {
         semantic_labels={
             0: "Maritime Shipwreck / Hull",
         },
-        default_conf=0.18,
+        default_conf=0.28,
         default_iou=0.60,
         is_end2end=True,
-        notes="High-precision maritime shipwreck segmentation detector. Trained directly on multi-survey shipwreck acoustic datasets.",
+        notes="High-precision maritime shipwreck segmentation detector. Calibrated threshold 0.28 optimizes wreck hull detection while eliminating false alarms.",
     ),
     "subpipes": ModelDefinition(
         name="Subsea Pipeline Detector",
@@ -117,9 +117,9 @@ MODEL_REGISTRY: Dict[str, ModelDefinition] = {
         task="detect",
         raw_classes={0: "Pipeline"},
         semantic_labels={0: "Subsea Pipeline / Conduit"},
-        default_conf=0.28,
+        default_conf=0.32,
         default_iou=0.70,
-        notes="Industrial subsea infrastructure and pipeline detector. Calibrated threshold 0.28 suppresses sand dune/ripple false alarms.",
+        notes="Industrial subsea infrastructure and pipeline detector. Calibrated threshold 0.32 suppresses sand dune/ripple false alarms.",
     ),
     "natural_seabed": ModelDefinition(
         name="Natural Seabed Classifier",
