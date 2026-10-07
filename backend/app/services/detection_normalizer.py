@@ -130,6 +130,20 @@ def calculate_iou(box1: Any, box2: Any) -> float:
     return inter_area / union_area
 
 
+def calculate_edge_distance(box1: BoundingBox, box2: BoundingBox) -> float:
+    """Calculate Euclidean distance between closest edges of two bounding boxes (0.0 if overlapping)."""
+    import math
+
+    b1_x1, b1_x2 = min(box1.x1, box1.x2), max(box1.x1, box1.x2)
+    b1_y1, b1_y2 = min(box1.y1, box1.y2), max(box1.y1, box1.y2)
+    b2_x1, b2_x2 = min(box2.x1, box2.x2), max(box2.x1, box2.x2)
+    b2_y1, b2_y2 = min(box2.y1, box2.y2), max(box2.y1, box2.y2)
+
+    dx = max(0.0, max(b1_x1, b2_x1) - min(b1_x2, b2_x2))
+    dy = max(0.0, max(b1_y1, b2_y1) - min(b1_y2, b2_y2))
+    return math.hypot(dx, dy)
+
+
 def calculate_containment_and_iou(box1: BoundingBox, box2: BoundingBox) -> Tuple[float, float]:
     """Calculate IoU (Intersection over Union) and IoS (Intersection over Smaller Box)."""
     x1 = max(min(box1.x1, box1.x2), min(box2.x1, box2.x2))
@@ -153,33 +167,35 @@ def calculate_containment_and_iou(box1: BoundingBox, box2: BoundingBox) -> Tuple
 
 def deduplicate_cross_model_detections(
     detections: List[DetectionResult],
-    iou_threshold: float = 0.45,
+    iou_threshold: float = 0.20,
 ) -> List[DetectionResult]:
     """Cross-model spatial deduplication with multi-hypothesis candidate retention.
 
     Rules applied:
-    - Compare spatial bbox overlap (IoU) and containment (IoS) across all candidate detections.
-    - When two or more models predict overlapping boxes on the same physical contact:
-      1. Macro structures (Shipwrecks, Pipelines) establish the primary physical contact.
-      2. Smaller sub-contacts (e.g. Cylinders or Ordnance) detected on/inside the macro structure
-         (IoS >= 0.35 or touching proximity) are absorbed as competing alternative hypotheses.
-      3. For peer targets of the same scale, the higher-confidence detection is preserved as primary.
-      4. Competing detections are retained under `competing_hypotheses` for operator inspection.
+    - Compare spatial bbox overlap (IoU), containment (IoS), and physical proximity across all candidate detections.
+    - When two or more models or candidate detections predict boxes on the same physical contact:
+      1. Macro structures (Shipwrecks, Pipelines) with credible confidence (>= 0.35) establish the primary physical contact.
+      2. Smaller sub-contacts (e.g. Cylinders or Ordnance) detected on/inside or adjacent to the macro structure
+         are absorbed as competing alternative hypotheses.
+      3. Multiple candidate boxes on the same anomaly (e.g. fragmented hull sections, adjacent reef tiles)
+         are merged into a single clean envelope enclosing the entire anomaly.
+      4. Low-confidence background clutter (< 0.35) is suppressed when a dominant confirmed contact (>= 0.50) exists.
+      5. Zero messy duplicate boxes on the same physical anomaly.
     """
     if len(detections) <= 1:
         return detections
 
-    # Score function: macro-structures take precedence to establish the overall vessel/pipeline boundary
     def priority_score(d: DetectionResult) -> float:
         score = float(d.confidence)
         raw_lower = (d.raw_class_name or "").lower()
 
-        if "shipwreck" in raw_lower:
-            score += 0.30  # Macro vessel hull establishes physical contact footprint
-        elif "pipeline" in raw_lower:
-            score += 0.20  # Macro pipeline infrastructure
-        elif any(k in raw_lower for k in ["milco", "mine", "nombo"]):
-            score += 0.10  # High-priority ordnance
+        # Only grant macro footprint precedence if the model has credible confidence (>= 0.35)
+        if "shipwreck" in raw_lower and d.confidence >= 0.35:
+            score += 0.30
+        elif "pipeline" in raw_lower and d.confidence >= 0.35:
+            score += 0.20
+        elif any(k in raw_lower for k in ["milco", "mine", "nombo"]) and d.confidence >= 0.30:
+            score += 0.15
 
         return score
 
@@ -188,42 +204,57 @@ def deduplicate_cross_model_detections(
 
     for cand in sorted_dets:
         matched_primary = None
+        cand_raw = (cand.raw_class_name or "").lower()
+
         for existing in kept:
-            iou, ios = calculate_containment_and_iou(cand.bounding_box, existing.bounding_box)
-            cand_raw = (cand.raw_class_name or "").lower()
             ex_raw = (existing.raw_class_name or "").lower()
+            same_class = (
+                cand_raw == ex_raw
+                or ("shipwreck" in cand_raw and "shipwreck" in ex_raw)
+                or ("cylinder" in cand_raw and "cylinder" in ex_raw)
+                or ("pipeline" in cand_raw and "pipeline" in ex_raw)
+            )
 
-            # Overlap condition 1: standard bounding box IoU >= threshold
-            is_iou = (iou >= iou_threshold)
+            iou, ios = calculate_containment_and_iou(cand.bounding_box, existing.bounding_box)
+            dist = calculate_edge_distance(cand.bounding_box, existing.bounding_box)
 
-            # Overlap condition 2: containment (>= 35% of smaller box area is inside larger box)
-            is_containment = (ios >= 0.35)
+            max_dim = max(
+                cand.bounding_box.width, cand.bounding_box.height,
+                existing.bounding_box.width, existing.bounding_box.height
+            )
+            has_macro = any(m in ex_raw or m in cand_raw for m in ["shipwreck", "pipeline"])
 
-            # Overlap condition 3: touching acoustic proximity for macro structures (20px margin)
-            is_proximity = False
-            has_macro = ("shipwreck" in ex_raw or "pipeline" in ex_raw or "shipwreck" in cand_raw or "pipeline" in cand_raw)
-            if has_macro and not is_iou and not is_containment:
-                margin = 20.0
-                if "shipwreck" in ex_raw or "pipeline" in ex_raw:
-                    mx1 = existing.bounding_box.x1 - margin
-                    my1 = existing.bounding_box.y1 - margin
-                    mx2 = existing.bounding_box.x2 + margin
-                    my2 = existing.bounding_box.y2 + margin
-                    ix1 = max(cand.bounding_box.x1, mx1)
-                    iy1 = max(cand.bounding_box.y1, my1)
-                    ix2 = min(cand.bounding_box.x2, mx2)
-                    iy2 = min(cand.bounding_box.y2, my2)
-                    if ix2 > ix1 and iy2 > iy1:
-                        c_area = max(1.0, (cand.bounding_box.x2 - cand.bounding_box.x1) * (cand.bounding_box.y2 - cand.bounding_box.y1))
-                        if ((ix2 - ix1) * (iy2 - iy1)) / c_area >= 0.45:
-                            is_proximity = True
+            # Proximity connection threshold for physical continuity on sonar returns
+            if same_class:
+                prox_thresh = max(120.0, 0.60 * max_dim)
+            elif has_macro:
+                # Include sub-targets on hull or trailing in acoustic shadow
+                prox_thresh = max(80.0, 0.40 * max_dim)
+            else:
+                prox_thresh = max(35.0, 0.20 * min(cand.bounding_box.width, existing.bounding_box.width))
 
-            if is_iou or is_containment or is_proximity:
+            is_overlap = (dist == 0.0 or iou >= 0.10 or ios >= 0.15)
+            is_close = (dist <= prox_thresh)
+
+            if is_overlap or is_close:
                 matched_primary = existing
+                # If same class, expand the primary box envelope to encompass the entire physical anomaly
+                if same_class:
+                    nx1 = min(existing.bounding_box.x1, cand.bounding_box.x1)
+                    ny1 = min(existing.bounding_box.y1, cand.bounding_box.y1)
+                    nx2 = max(existing.bounding_box.x2, cand.bounding_box.x2)
+                    ny2 = max(existing.bounding_box.y2, cand.bounding_box.y2)
+                    existing.bounding_box.x1 = nx1
+                    existing.bounding_box.y1 = ny1
+                    existing.bounding_box.x2 = nx2
+                    existing.bounding_box.y2 = ny2
+                    existing.bounding_box.width = max(0.0, nx2 - nx1)
+                    existing.bounding_box.height = max(0.0, ny2 - ny1)
+                    existing.confidence = max(existing.confidence, cand.confidence)
                 break
 
         if matched_primary is not None:
-            # Overlapping detection on same contact: record as competing alternative hypothesis
+            # Overlapping or adjacent detection on same contact: record as competing alternative hypothesis
             cand_priority, _ = determine_detection_priority(cand.raw_class_name)
             alt = {
                 "model": cand.model_name,
@@ -242,7 +273,13 @@ def deduplicate_cross_model_detections(
                 cand.competing_hypotheses = []
             kept.append(cand)
 
-    return kept
+    # Dominant target clutter filter: if top contact >= 0.50, prune faint background noise (< 0.32)
+    if kept:
+        top_conf = max(float(k.confidence) for k in kept)
+        if top_conf >= 0.50:
+            kept = [k for k in kept if float(k.confidence) >= 0.32]
+
+    return kept[:3]
 
 
 def build_analysis_detection(

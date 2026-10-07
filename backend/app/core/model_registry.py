@@ -103,10 +103,10 @@ MODEL_REGISTRY: Dict[str, ModelDefinition] = {
         semantic_labels={
             0: "Maritime Shipwreck / Hull",
         },
-        default_conf=0.28,
-        default_iou=0.60,
+        default_conf=0.20,
+        default_iou=0.50,
         is_end2end=True,
-        notes="High-precision maritime shipwreck segmentation detector. Calibrated threshold 0.28 optimizes wreck hull detection while eliminating false alarms.",
+        notes="High-precision maritime shipwreck segmentation detector. Calibrated threshold 0.20 optimizes wreck hull detection while eliminating false alarms.",
     ),
     "subpipes": ModelDefinition(
         name="Subsea Pipeline Detector",

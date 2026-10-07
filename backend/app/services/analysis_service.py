@@ -208,7 +208,7 @@ class AnalysisService:
             verified_candidates = raw_detections
 
         # Cross-model deduplication for overlapping models on remaining genuine contacts
-        active_detections = deduplicate_cross_model_detections(verified_candidates, iou_threshold=0.50)
+        active_detections = deduplicate_cross_model_detections(verified_candidates, iou_threshold=0.25)
 
         # If no verified specialized targets remain, check seabed anomaly screening:
         # If an uncatalogued anomaly or wreck structure is confirmed (p_anomaly > 0.60),
@@ -222,7 +222,9 @@ class AnalysisService:
             except Exception as e:
                 logger.debug(f"Seabed anomaly screening skipped: {e}")
 
-            if p_anomaly > 0.60 or models_failed == len(target_models):
+            # Fallback contrast heuristic: if all models failed, or if an uncatalogued anomaly is confirmed
+            should_run_fallback = (models_failed == len(target_models) and models_failed > 0) or (p_anomaly > 0.60 and not active_detections)
+            if should_run_fallback:
                 anom_boxes = extract_acoustic_anomalies(
                     preprocessed.np_array,
                     confidence=confidence,
@@ -466,7 +468,7 @@ def extract_acoustic_anomalies(
             valid_contours.append((area, c))
 
     valid_contours.sort(key=lambda x: x[0], reverse=True)
-    selected_contours = valid_contours[:4]
+    selected_contours = valid_contours[:1]
 
     if not selected_contours:
         return []
