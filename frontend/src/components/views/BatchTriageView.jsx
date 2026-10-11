@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   AlertTriangle, 
   CheckCircle2, 
@@ -33,6 +33,41 @@ export default function BatchTriageView({
   const [activeTab, setActiveTab] = useState('flagged'); // 'flagged' | 'clean' | 'failed' | 'all'
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const [etaSeconds, setEtaSeconds] = useState(null);
+  const startTimeRef = useRef(null);
+
+  useEffect(() => {
+    if (isScanning && !startTimeRef.current) {
+      startTimeRef.current = Date.now();
+    } else if (!isScanning) {
+      startTimeRef.current = null;
+      setEtaSeconds(null);
+    }
+  }, [isScanning]);
+
+  useEffect(() => {
+    if (isScanning && startTimeRef.current) {
+      const progressPercent = scanProgress?.progress || 0;
+      if (progressPercent > 0 && progressPercent < 100) {
+        const elapsedMs = Date.now() - startTimeRef.current;
+        const totalEstimatedMs = (elapsedMs / progressPercent) * 100;
+        const remainingMs = totalEstimatedMs - elapsedMs;
+        setEtaSeconds(Math.max(0, Math.floor(remainingMs / 1000)));
+      } else if (progressPercent >= 100) {
+        setEtaSeconds(0);
+      }
+    }
+  }, [isScanning, scanProgress?.progress]);
+
+  const formatEta = (seconds) => {
+    if (seconds === null) return 'Calculating ETA...';
+    if (seconds === 0) return 'Complete';
+    if (seconds < 60) return `${seconds}s remaining`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s remaining`;
+  };
 
   const flaggedList = batchResults?.flagged || [];
   const cleanList = batchResults?.clean || [];
@@ -203,6 +238,11 @@ export default function BatchTriageView({
                 </span>
               </div>
               <div className="flex items-center space-x-3">
+                {isScanning && (
+                  <span className="text-[#8ea4bf] text-xs font-mono lowercase hidden sm:inline-block">
+                    {formatEta(etaSeconds)}
+                  </span>
+                )}
                 <span className="text-primary font-bold">{scanProgress?.progress || 0}%</span>
                 <button
                   onClick={() => {
