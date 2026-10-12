@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.anonymous_session import session_owner
 from app.core.model_registry import ModelNotFoundError
 from app.db.session import get_db
 from app.schemas.analysis import (
@@ -149,6 +150,7 @@ def analyze_sonar_survey(
         0.70, description="ROI clean threshold [0.50 - 0.99]: ROI crops above this are suppressed (default: 0.70)."
     ),
     db: Session = Depends(get_db),
+    owner_hash: str = Depends(session_owner),
 ) -> Union[AnalysisResponse, JSONResponse]:
     """Analyze a sonar image through the end-to-end multi-model pipeline and persist results."""
 
@@ -325,6 +327,7 @@ def analyze_sonar_survey(
             file_bytes=file_bytes,
             content_type=image.content_type,
             db=db,
+            owner_hash=owner_hash,
         )
     except PersistenceError as e:
         logger.error(f"Persistence error for {response.analysis_id}: {e}", exc_info=True)
@@ -338,6 +341,7 @@ def analyze_sonar_survey(
 
 def _run_async_analysis_pipeline(
     job_id: str,
+    owner_hash: str,
     file_bytes: bytes,
     filename: str,
     content_type: Optional[str],
@@ -391,6 +395,7 @@ def _run_async_analysis_pipeline(
             file_bytes=file_bytes,
             content_type=content_type,
             db=db,
+            owner_hash=owner_hash,
         )
 
         job_service.complete_job(job_id, analysis_res)
@@ -412,6 +417,7 @@ def _run_async_analysis_pipeline(
 )
 async def submit_analysis_job(
     background_tasks: BackgroundTasks,
+    owner_hash: str = Depends(session_owner),
     image: UploadFile = File(..., description="Uploaded sonar image file (JPEG, PNG, TIFF, BMP, WebP)"),
     selected_models: Optional[str] = Form(None),
     latitude: Optional[Union[float, str]] = Form(None),
@@ -526,7 +532,7 @@ async def submit_analysis_job(
     # 3. Create Asynchronous Job
     job_id = f"JOB-{uuid.uuid4().hex[:12].upper()}"
     filename = image.filename or "sonar_image.png"
-    job_entry = job_service.create_job(job_id=job_id, original_filename=filename)
+    job_entry = job_service.create_job(job_id=job_id, original_filename=filename, owner_hash=owner_hash)
 
     geolocation = AnalysisGeolocation(
         latitude=lat_val,
@@ -542,6 +548,7 @@ async def submit_analysis_job(
     background_tasks.add_task(
         _run_async_analysis_pipeline,
         job_id=job_id,
+        owner_hash=owner_hash,
         file_bytes=file_bytes,
         filename=filename,
         content_type=image.content_type,
@@ -572,10 +579,10 @@ async def submit_analysis_job(
     summary="Get Asynchronous Analysis Job Status & Result",
     description="Returns current progress, status, and full analysis response once completed.",
 )
-async def get_analysis_job_status(job_id: str) -> JobStatusResponse:
+async def get_analysis_job_status(job_id: str, owner_hash: str = Depends(session_owner)) -> JobStatusResponse:
     """Check progress or retrieve result of an asynchronous analysis job."""
     job = job_service.get_job(job_id)
-    if not job:
+    if not job or job.get("owner_hash") != owner_hash:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job '{job_id}' not found.",
@@ -593,9 +600,10 @@ async def get_analysis_job_status(job_id: str) -> JobStatusResponse:
 async def get_analysis_by_id(
     analysis_id: str,
     db: Session = Depends(get_db),
+    owner_hash: str = Depends(session_owner),
 ) -> AnalysisDetailResponse:
     """Retrieve complete persisted analysis details by analysis_id."""
-    analysis = analysis_persistence_service.get_analysis_by_id(analysis_id, db)
+    analysis = analysis_persistence_service.get_analysis_by_id(analysis_id, db, owner_hash=owner_hash)
     if not analysis:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -617,6 +625,7 @@ async def list_analyses(
     status_filter: Optional[str] = Query(None, alias="status", description="Filter by status (e.g. 'completed')"),
     detection_type: Optional[str] = Query(None, description="Filter by detected object type"),
     db: Session = Depends(get_db),
+    owner_hash: str = Depends(session_owner),
 ) -> PaginatedAnalysisResponse:
     """Retrieve paginated analyses history with optional filtering."""
     return analysis_persistence_service.list_analyses(
@@ -625,6 +634,7 @@ async def list_analyses(
         status=status_filter,
         detection_type=detection_type,
         db=db,
+        owner_hash=owner_hash,
     )
 
 
@@ -639,6 +649,7 @@ async def delete_analysis_by_id(
     analysis_id: str,
     x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
     db: Session = Depends(get_db),
+    owner_hash: str = Depends(session_owner),
 ) -> DeleteAnalysisResponse:
     """Delete an analysis and associated evidence from DB and storage."""
     if settings.ADMIN_API_KEY and x_admin_key != settings.ADMIN_API_KEY:
@@ -646,7 +657,7 @@ async def delete_analysis_by_id(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Unauthorized: Valid X-Admin-Key header is required to delete survey analyses.",
         )
-    deleted = analysis_persistence_service.delete_analysis(analysis_id, db)
+    deleted = analysis_persistence_service.delete_analysis(analysis_id, db, owner_hash=owner_hash)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -667,10 +678,11 @@ async def delete_analysis_by_id(
 async def get_analysis_evidence(
     analysis_id: str,
     db: Session = Depends(get_db),
+    owner_hash: str = Depends(session_owner),
 ) -> Response:
     """Retrieve and stream the original sonar evidence image."""
     try:
-        data, content_type, filename = analysis_persistence_service.get_evidence_file(analysis_id, db)
+        data, content_type, filename = analysis_persistence_service.get_evidence_file(analysis_id, db, owner_hash=owner_hash)
         return Response(
             content=data,
             media_type=content_type,

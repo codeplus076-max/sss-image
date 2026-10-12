@@ -28,6 +28,7 @@ from app.services.analysis_persistence_service import (
 from app.services.storage_service import LocalStorageProvider, StorageError, StorageService
 
 client = TestClient(app)
+client.post("/api/v1/session")
 
 
 def _make_dummy_image_bytes(size=(100, 100), color=(10, 20, 30)) -> bytes:

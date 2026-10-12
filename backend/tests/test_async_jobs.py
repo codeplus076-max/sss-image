@@ -12,7 +12,9 @@ from app.main import create_application
 @pytest.fixture
 def client():
     app = create_application()
-    return TestClient(app)
+    client = TestClient(app)
+    client.post("/api/v1/session")
+    return client
 
 
 @pytest.fixture

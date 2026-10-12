@@ -55,6 +55,8 @@ backend/models/*_old*
 backend/models/*_v2*
 *_crop.png
 backend/*_crop.png
+Ultralytics/
+backend/Ultralytics/
 
 # Frontend dependencies & build outputs
 node_modules/

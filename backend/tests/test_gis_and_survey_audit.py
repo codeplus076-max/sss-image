@@ -40,6 +40,7 @@ from app.services.detection_normalizer import (
 from app.schemas.analysis import AnalysisGeolocation
 
 client = TestClient(app)
+client.post("/api/v1/session")
 
 
 def _generate_valid_sonar_bytes(w=256, h=256):

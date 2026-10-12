@@ -10,6 +10,7 @@ from app.main import app
 from app.schemas.inference import BoundingBox, DetectionResult, InferenceResponse
 
 client = TestClient(app)
+client.post("/api/v1/session")
 
 
 def _generate_test_image_bytes(format_name: str = "PNG", size=(640, 640), color=(15, 25, 35)) -> bytes:

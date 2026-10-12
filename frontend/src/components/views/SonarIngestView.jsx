@@ -418,6 +418,10 @@ export default function SonarIngestView({
                 Drag single or multiple sonar swaths here, or use the buttons below.
               </p>
 
+              <p className="mt-3 text-xs text-on-surface-variant">
+                Your upload history is private to this browser. Clearing cookies removes access to it.
+              </p>
+
               {/* Dual Ingest Buttons: Single File vs Multi-Image Batch */}
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
                 <button

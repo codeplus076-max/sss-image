@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
+client.post("/api/v1/session")
 SAMPLE_SONAR_PATH = Path(__file__).resolve().parent.parent.parent / "frontend" / "public" / "assets" / "underwater_plate_final.jpg"
 
 def _load_sonar_bytes():

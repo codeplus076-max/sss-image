@@ -19,6 +19,7 @@ from app.services.sonar_image_validator import (
 )
 
 client = TestClient(app)
+client.post("/api/v1/session")
 
 REAL_SAMPLE_PATH = Path("../frontend/public/assets/underwater_plate_final.jpg")
 

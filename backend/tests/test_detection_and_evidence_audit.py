@@ -38,6 +38,7 @@ from app.services.detection_normalizer import (
 from app.services.analysis_service import analysis_service
 
 client = TestClient(app)
+client.post("/api/v1/session")
 
 
 def _generate_valid_sonar_bytes(w=256, h=256):

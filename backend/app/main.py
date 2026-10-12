@@ -8,7 +8,9 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("TORCH_NUM_THREADS", "1")
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from app.core.anonymous_session import initialize_session
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.routes import api_router as api_v1_router
@@ -41,11 +43,24 @@ def create_application() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
-        allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def protect_private_responses(request: Request, call_next):
+        private = request.url.path.startswith(f"{settings.API_V1_PREFIX}/analysis") or request.url.path == f"{settings.API_V1_PREFIX}/session"
+        origin = request.headers.get("origin")
+        if private and request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin not in settings.CORS_ORIGINS:
+            return JSONResponse({"detail": "Origin not allowed"}, status_code=403, headers={"Cache-Control": "no-store"})
+        response = await call_next(request)
+        if private:
+            response.headers["Cache-Control"] = "private, no-store"
+            response.headers["Vary"] = "Cookie, Origin"
+        return response
+
+    app.add_api_route(f"{settings.API_V1_PREFIX}/session", initialize_session, methods=["POST"])
 
     # Include API routers
     app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)

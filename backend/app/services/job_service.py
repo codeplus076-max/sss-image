@@ -23,11 +23,12 @@ class JobService:
         self._jobs: Dict[str, Dict[str, Any]] = {}
         self._max_history = max_history
 
-    def create_job(self, job_id: str, original_filename: str) -> Dict[str, Any]:
+    def create_job(self, job_id: str, original_filename: str, owner_hash: Optional[str] = None) -> Dict[str, Any]:
         """Initialize and register a new queued job."""
         now = _utc_now_iso()
         job_data = {
             "job_id": job_id,
+            "owner_hash": owner_hash,
             "status": "queued",
             "progress": 0.05,
             "current_step": "Survey registered in execution queue",

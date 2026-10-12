@@ -218,3 +218,31 @@ GET  /api/v1/health                   (Backend operational health check)
 1. **Decision Support, Not Autonomous Threat Classification**: The platform identifies candidate acoustic anomalies and assigns review priority (`HIGH`, `MEDIUM`, `LOW`) to guide human operators. It does not replace certified mine-countermeasure (MCM) authorities and never claims confirmed explosive threat status from AI detections alone.
 2. **Cartographic Distinction**: Target coordinates are localized in sonar image-space (percentage offsets). Survey GPS coordinates anchor the towfish. Conversion to absolute seafloor geographic coordinates requires vehicle altitude, towfish layback, and ray-tracing bathymetry.
 3. **Natural Seabed Integration**: The Natural Seabed model remains pending training and is intentionally excluded from active inference.
+
+
+## Anonymous browser sessions
+
+Visitors do not need an account. The frontend initializes a random anonymous session
+using `POST /api/v1/session` before requesting analyses. An HttpOnly, SameSite=Lax
+cookie lasts one year (renewed on initialization); HTTPS responses mark it Secure.
+Only the SHA-256 hash is stored with each analysis. History, individual results,
+evidence, deletion, and asynchronous job polling are restricted to that browser.
+Private responses disable caching. Clearing cookies or switching browsers starts a
+new history; stored uploads are not deleted by clearing cookies.
+
+On startup the backend adds the nullable `owner_hash` column and index to existing
+SQLite/PostgreSQL databases. Existing uploads remain stored with no owner and are
+inaccessible through visitor endpoints. No administrator UI is included.
+
+Deploy both frontend and backend together. Browser requests now use `/api` on the
+website domain so cookies also work when third-party cookies are blocked:
+- Vercel: `frontend/vercel.json` proxies `/api` to the Render backend listed in the
+  keep-alive workflow. Update that destination if your backend hostname changes.
+- Local development/preview: Vite proxies `/api` to `http://127.0.0.1:8000`.
+- `VITE_API_BASE_URL` is no longer used. Other hosting must provide the same proxy.
+- Add your exact production/custom/preview frontend origin to backend `CORS_ORIGINS`.
+  Arbitrary Vercel preview domains are no longer trusted.
+- Keep any Supabase evidence bucket private; public object URLs bypass API access checks.
+
+API clients must initialize a session and retain its cookie for subsequent requests.
+Session cookies are private credentials and must not be shared.

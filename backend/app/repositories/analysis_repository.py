@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 class AnalysisRepository:
     """Repository layer for database operations on analyses, detections, and evidence."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, owner_hash: Optional[str] = None):
         self.db = db
+        self.owner_hash = owner_hash
 
     def create_analysis(
         self,
@@ -66,6 +67,8 @@ class AnalysisRepository:
                 selectinload(AnalysisRecord.evidence),
             )
         )
+        if self.owner_hash is not None:
+            stmt = stmt.where(AnalysisRecord.owner_hash == self.owner_hash)
         return self.db.execute(stmt).scalar_one_or_none()
 
     def list_analyses(
@@ -81,6 +84,8 @@ class AnalysisRepository:
         offset = (page - 1) * page_size
 
         stmt = select(AnalysisRecord)
+        if self.owner_hash is not None:
+            stmt = stmt.where(AnalysisRecord.owner_hash == self.owner_hash)
 
         if status:
             stmt = stmt.where(AnalysisRecord.status == status)

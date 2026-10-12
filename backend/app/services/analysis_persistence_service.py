@@ -47,6 +47,7 @@ class AnalysisPersistenceService:
         file_bytes: bytes,
         content_type: Optional[str],
         db: Session,
+        owner_hash: Optional[str] = None,
     ) -> AnalysisRecord:
         """Store evidence image and persist analysis, detections, and metadata atomically."""
         analysis_id = analysis_response.analysis_id
@@ -68,6 +69,7 @@ class AnalysisPersistenceService:
         # Step 2: Prepare database records
         analysis_data: Dict[str, Any] = {
             "analysis_id": analysis_id,
+            "owner_hash": owner_hash,
             "status": analysis_response.status,
             "original_filename": filename,
             "image_width": analysis_response.image.width,
@@ -127,7 +129,7 @@ class AnalysisPersistenceService:
             )
 
         # Step 3: Atomic database persistence with cleanup on failure
-        repo = AnalysisRepository(db)
+        repo = AnalysisRepository(db, owner_hash)
         try:
             record = repo.create_analysis(
                 analysis_data=analysis_data,
@@ -283,9 +285,9 @@ class AnalysisPersistenceService:
             evidence_url=evidence_url,
         )
 
-    def get_analysis_by_id(self, analysis_id: str, db: Session) -> Optional[AnalysisDetailResponse]:
+    def get_analysis_by_id(self, analysis_id: str, db: Session, owner_hash: Optional[str] = None) -> Optional[AnalysisDetailResponse]:
         """Fetch analysis details by analysis_id."""
-        repo = AnalysisRepository(db)
+        repo = AnalysisRepository(db, owner_hash)
         record = repo.get_by_analysis_id(analysis_id)
         if not record:
             return None
@@ -298,9 +300,10 @@ class AnalysisPersistenceService:
         status: Optional[str],
         detection_type: Optional[str],
         db: Session,
+        owner_hash: Optional[str] = None,
     ) -> PaginatedAnalysisResponse:
         """Fetch paginated analyses list."""
-        repo = AnalysisRepository(db)
+        repo = AnalysisRepository(db, owner_hash)
         records, total = repo.list_analyses(
             page=page,
             page_size=page_size,
@@ -319,9 +322,9 @@ class AnalysisPersistenceService:
             items=items,
         )
 
-    def delete_analysis(self, analysis_id: str, db: Session) -> bool:
+    def delete_analysis(self, analysis_id: str, db: Session, owner_hash: Optional[str] = None) -> bool:
         """Delete analysis and associated evidence from DB and storage."""
-        repo = AnalysisRepository(db)
+        repo = AnalysisRepository(db, owner_hash)
         res = repo.delete_by_analysis_id(analysis_id)
         if not res:
             return False
@@ -335,9 +338,9 @@ class AnalysisPersistenceService:
 
         return True
 
-    def get_evidence_file(self, analysis_id: str, db: Session) -> Tuple[bytes, str, str]:
+    def get_evidence_file(self, analysis_id: str, db: Session, owner_hash: Optional[str] = None) -> Tuple[bytes, str, str]:
         """Retrieve raw evidence image bytes, media type, and filename."""
-        repo = AnalysisRepository(db)
+        repo = AnalysisRepository(db, owner_hash)
         record = repo.get_by_analysis_id(analysis_id)
         if not record or not record.evidence:
             raise StorageError(f"Evidence record not found for analysis {analysis_id}")

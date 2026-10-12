@@ -29,6 +29,8 @@ class AnalysisRecord(Base):
     analysis_id: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="completed", nullable=False)
 
+    owner_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+
     # Sonar Image Specifications
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     image_width: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -12,6 +12,7 @@ from unittest.mock import patch
 from app.schemas.inference import InferenceResponse
 
 client = TestClient(app)
+client.post("/api/v1/session")
 
 
 @pytest.fixture(autouse=True)

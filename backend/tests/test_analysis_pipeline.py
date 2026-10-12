@@ -25,6 +25,7 @@ from app.services.preprocessing_service import (
 )
 
 client = TestClient(app)
+client.post("/api/v1/session")
 
 
 def _create_image_bytes(format_name: str = "PNG", size=(640, 640), color=(15, 25, 35)) -> bytes:

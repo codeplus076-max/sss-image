@@ -2,10 +2,23 @@
  * SonarOps Marine Intelligence — Backend API Client
  * 
  * Centralized service for communicating with the FastAPI backend.
- * Base URL configurable via VITE_API_BASE_URL.
+ * Same-origin API proxy keeps anonymous session cookies first-party.
  */
 
-export const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '');
+export const API_BASE_URL = '';
+
+let sessionReady;
+async function sessionFetch(url, options = {}) {
+  if (!sessionReady) {
+    sessionReady = fetch('/api/v1/session', { method: 'POST', credentials: 'same-origin' })
+      .then((response) => {
+        if (!response.ok) throw new Error('Unable to initialize private browser session.');
+      })
+      .catch((error) => { sessionReady = null; throw error; });
+  }
+  await sessionReady;
+  return fetch(url, { ...options, credentials: 'same-origin', cache: 'no-store' });
+}
 
 export class ApiError extends Error {
   constructor(message, status, data = null, userFriendlyMessage = null) {
@@ -161,7 +174,7 @@ export async function pollAnalysisJob(jobId, onProgress = null, maxTimeoutMs = 1
 
     let response;
     try {
-      response = await fetch(`${API_BASE_URL}/api/v1/analysis/jobs/${jobId}`, { signal });
+      response = await sessionFetch(`${API_BASE_URL}/api/v1/analysis/jobs/${jobId}`, { signal });
     } catch (err) {
       if (signal?.aborted || err?.name === 'AbortError') {
         throw new DOMException('Analysis polling was aborted', 'AbortError');
@@ -323,7 +336,7 @@ export async function analyzeSonarImage(imageFile, options = {}) {
 
   // 1. Asynchronous Job Submission (Eliminates Render/Cloudflare 100s Timeouts)
   try {
-    const jobSubmitResponse = await fetch(`${API_BASE_URL}/api/v1/analysis/jobs`, {
+    const jobSubmitResponse = await sessionFetch(`${API_BASE_URL}/api/v1/analysis/jobs`, {
       method: 'POST',
       body: formData,
       signal,
@@ -348,7 +361,7 @@ export async function analyzeSonarImage(imageFile, options = {}) {
   // 2. Synchronous Fallback (/analyze)
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}/api/v1/analysis/analyze`, {
+    response = await sessionFetch(`${API_BASE_URL}/api/v1/analysis/analyze`, {
       method: 'POST',
       body: formData,
       signal,
@@ -521,7 +534,7 @@ export async function getAnalyses(params = {}) {
   const url = `${API_BASE_URL}/api/v1/analysis${qs ? `?${qs}` : ''}`;
 
   try {
-    const response = await fetch(url);
+    const response = await sessionFetch(url);
     if (!response.ok) {
       throw new ApiError(`Failed to fetch analyses (${response.status})`, response.status);
     }
@@ -540,7 +553,7 @@ export async function getAnalysisById(analysisId) {
   if (!analysisId) return null;
   const url = `${API_BASE_URL}/api/v1/analysis/${analysisId}`;
 
-  const response = await fetch(url);
+  const response = await sessionFetch(url);
   if (!response.ok) {
     throw new ApiError(`Analysis with ID '${analysisId}' not found`, response.status);
   }

@@ -71,6 +71,7 @@ def fresh_db_env():
     app.dependency_overrides[get_db] = override_get_db
 
     client = TestClient(app)
+    client.post("/api/v1/session")
 
     yield {
         "client": client,

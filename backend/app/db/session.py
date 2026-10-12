@@ -43,6 +43,10 @@ def init_db() -> None:
             inspector = inspect(engine)
             if "analyses" in inspector.get_table_names():
                 cols = [c["name"] for c in inspector.get_columns("analyses")]
+                if "owner_hash" not in cols:
+                    conn.execute(text("ALTER TABLE analyses ADD COLUMN owner_hash VARCHAR(64)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_analyses_owner_hash ON analyses (owner_hash)"))
+                    conn.commit()
                 if "triage" not in cols:
                     conn.execute(text("ALTER TABLE analyses ADD COLUMN triage JSON"))
                     conn.commit()
